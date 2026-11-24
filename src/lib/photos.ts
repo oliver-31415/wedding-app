@@ -49,6 +49,16 @@ export async function getCoverPhoto(weddingId: string): Promise<SitePhoto | null
   return row ? toSitePhoto(row) : null;
 }
 
+/** A page's own photo (not the cover), or null. */
+export async function getPagePhoto(weddingId: string, pageId: string): Promise<SitePhoto | null> {
+  const [row] = await db
+    .select()
+    .from(schema.photos)
+    .where(and(eq(schema.photos.weddingId, weddingId), eq(schema.photos.pageId, pageId), eq(schema.photos.kind, "page")))
+    .limit(1);
+  return row ? toSitePhoto(row) : null;
+}
+
 /** A Photos page's gallery, in order. */
 export async function getGalleryPhotos(weddingId: string, pageId: string): Promise<SitePhoto[]> {
   const rows = await db
@@ -145,6 +155,45 @@ export async function setCoverPhoto(weddingId: string, file: File, details: Deta
     },
     { behavior: "immediate" },
   ));
+  await deleteUpload(oldUrl);
+  return { ok: true, photo };
+}
+
+/** Sets (or replaces) a page's own photo. The Home page uses the cover photo instead. */
+export async function setPagePhoto(weddingId: string, pageId: string, file: File, details: Details): Promise<PhotoResult> {
+  const [page] = await db
+    .select({ id: schema.pages.id, type: schema.pages.type })
+    .from(schema.pages)
+    .where(and(eq(schema.pages.id, pageId), eq(schema.pages.weddingId, weddingId)));
+  if (!page || page.type === "home") return { ok: false, error: "That page doesn't exist." };
+  const saved = await saveUploadedImage(file, { photo: true });
+  if (!saved.ok) return saved;
+  const { photo, oldUrl } = await keepFileOnlyIfSaved(saved.url, () =>
+    db.transaction(
+      async (tx) => {
+        const [old] = await tx
+          .select({ id: schema.photos.id, url: schema.photos.url })
+          .from(schema.photos)
+          .where(and(eq(schema.photos.weddingId, weddingId), eq(schema.photos.pageId, page.id), eq(schema.photos.kind, "page")));
+        if (old) await tx.delete(schema.photos).where(and(eq(schema.photos.id, old.id), eq(schema.photos.weddingId, weddingId)));
+        const [photo] = await tx
+          .insert(schema.photos)
+          .values({
+            id: newId(),
+            weddingId,
+            kind: "page",
+            pageId: page.id,
+            url: saved.url,
+            width: saved.width,
+            height: saved.height,
+            ...detailValues("page", details, DEFAULT_FOCUS.page),
+          })
+          .returning();
+        return { photo, oldUrl: old?.url };
+      },
+      { behavior: "immediate" },
+    ),
+  );
   await deleteUpload(oldUrl);
   return { ok: true, photo };
 }

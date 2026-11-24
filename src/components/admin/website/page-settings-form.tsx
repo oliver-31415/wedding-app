@@ -16,7 +16,7 @@ import type { Audience, PageType, PageVisibility } from "@/db/schema";
 import { PAGE_VISIBILITY } from "@/db/schema";
 import { pageUrl, VISIBILITY_META } from "@/lib/pages";
 
-type PageData = {
+export type PageData = {
   id: string;
   type: PageType;
   title: string;

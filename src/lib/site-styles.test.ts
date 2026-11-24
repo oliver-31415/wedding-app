@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCENT_PRESETS,
+  buildPreviewQuery,
   buildSiteStyleVars,
   contrastRatio,
   firstSearchParam,
@@ -12,12 +13,14 @@ import {
   SITE_STYLE_IDS,
   SITE_STYLE_LIST,
   SITE_STYLES,
+  splitHomeBody,
+  withPreviewQuery,
 } from "./site-styles";
 
 describe("site style presets", () => {
-  it("defines 5 distinct presets including existing classic, modern, and garden ids", () => {
-    expect(SITE_STYLE_IDS).toEqual(["classic", "modern", "garden", "editorial", "minimal"]);
-    expect(SITE_STYLE_LIST).toHaveLength(5);
+  it("defines 6 distinct presets including classic, modern, garden, editorial, minimal, and split", () => {
+    expect(SITE_STYLE_IDS).toEqual(["classic", "modern", "garden", "editorial", "minimal", "split"]);
+    expect(SITE_STYLE_LIST).toHaveLength(6);
 
     const headers = new Set(SITE_STYLE_LIST.map((s) => s.layout.header));
     const navs = new Set(SITE_STYLE_LIST.map((s) => s.layout.nav));
@@ -26,12 +29,12 @@ describe("site style presets", () => {
     const faqs = new Set(SITE_STYLE_LIST.map((s) => s.layout.faq));
     const contentTreatments = new Set(SITE_STYLE_LIST.map((s) => s.layout.content));
 
-    expect(headers.size).toBe(5);
-    expect(navs.size).toBe(5);
-    expect(schedules.size).toBe(5);
-    expect(parties.size).toBe(5);
-    expect(faqs.size).toBe(5);
-    expect(contentTreatments.size).toBe(5);
+    expect(headers.size).toBe(6);
+    expect(navs.size).toBe(6);
+    expect(schedules.size).toBe(6);
+    expect(parties.size).toBe(6);
+    expect(faqs.size).toBe(6);
+    expect(contentTreatments.size).toBe(6);
   });
 
   it("validates style ids and falls back to classic for unknown values", () => {
@@ -184,5 +187,28 @@ describe("buildSiteStyleVars & firstSearchParam", () => {
     expect(firstSearchParam("modern")).toBe("modern");
     expect(firstSearchParam(["garden", "minimal"])).toBe("garden");
     expect(firstSearchParam(undefined)).toBeNull();
+  });
+
+  it("builds and attaches host preview queries", () => {
+    const qs = buildPreviewQuery({ style: "split", accent: "#35526c", embed: "1" });
+    expect(qs).toBe("style=split&accent=%2335526c&embed=1");
+    expect(withPreviewQuery("/schedule", qs)).toBe("/schedule?style=split&accent=%2335526c&embed=1");
+    expect(withPreviewQuery("/find?next=%2Frsvp", qs)).toBe(
+      "/find?next=%2Frsvp&style=split&accent=%2335526c&embed=1",
+    );
+    expect(withPreviewQuery("/schedule", "")).toBe("/schedule");
+  });
+
+  it("splits Home page body into lead greeting and extra paragraphs", () => {
+    expect(splitHomeBody(null)).toEqual({ lead: null, rest: null });
+    expect(splitHomeBody("   ")).toEqual({ lead: null, rest: null });
+    expect(splitHomeBody("Welcome to our wedding!")).toEqual({
+      lead: "Welcome to our wedding!",
+      rest: null,
+    });
+    expect(splitHomeBody("First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")).toEqual({
+      lead: "First paragraph.",
+      rest: "Second paragraph.\n\nThird paragraph.",
+    });
   });
 });

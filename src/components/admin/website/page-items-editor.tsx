@@ -182,7 +182,7 @@ function ItemRow({
   }
 
   return (
-    <li className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+    <li id={`entry-${item.id}`} className="flex scroll-mt-4 flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1 space-y-1">
         <p className="font-medium text-ink">{item.title}</p>
         {item.subtitle && <p className="text-sm text-brand">{item.subtitle}</p>}

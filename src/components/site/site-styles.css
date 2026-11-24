@@ -1,5 +1,5 @@
 /*
- * Scoped guest-site styling for the 5 design presets.
+ * Scoped guest-site styling for the 6 design presets.
  * Everything is scoped strictly under [data-site-style] so admin screens are
  * completely unaffected. This lets RSVP and Gift bodies (which consume the
  * shared Tailwind design tokens) adapt automatically to every preset.
@@ -148,6 +148,66 @@
   word-spacing: 0.12em;
 }
 
+/* ------------------------------------------------------------------- Split */
+
+/* Outlined pill buttons in the accent colour (leaving radio/toggle selection filled). */
+[data-site-style][data-style="split"]
+  main
+  :is(button, a).bg-accent:not([aria-checked="true"]):not([aria-pressed="true"]),
+[data-site-style][data-style="split"]
+  main
+  :is(button, a).bg-accent.text-white:not([aria-checked="true"]):not([aria-pressed="true"]) {
+  background-color: transparent;
+  border: 1.5px solid var(--color-accent);
+  color: var(--color-accent);
+  border-radius: 9999px;
+  transition: background-color 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+[data-site-style][data-style="split"]
+  main
+  :is(button, a).bg-accent:not([aria-checked="true"]):not([aria-pressed="true"]):hover,
+[data-site-style][data-style="split"]
+  main
+  :is(button, a).bg-accent.text-white:not([aria-checked="true"]):not([aria-pressed="true"]):hover {
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  opacity: 1;
+}
+
+[data-site-style][data-style="split"] main button[type="submit"] {
+  border-radius: 9999px;
+}
+
+/* Keep gift cards in a readable single column inside Split's right panel. */
+[data-site-style][data-style="split"] main .grid.md\:grid-cols-2 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Lock page scroll and gently animate the Split navigation drawer. */
+html:has(dialog[data-split-nav-dialog][open]) {
+  overflow: hidden;
+}
+
+dialog[data-split-nav-dialog][open] {
+  animation: split-drawer-in 180ms ease-out;
+}
+
+dialog[data-split-nav-dialog][open]::backdrop {
+  animation: photo-lightbox-in 180ms ease-out;
+}
+
+@keyframes split-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* ------------------------------------------------------------------ Photos */
 
 [data-site-style] [data-minimal-gallery] {
@@ -193,7 +253,9 @@ dialog[data-photo-lightbox][open]::backdrop {
 
 @media (prefers-reduced-motion: reduce) {
   dialog[data-photo-lightbox][open],
-  dialog[data-photo-lightbox][open]::backdrop {
+  dialog[data-photo-lightbox][open]::backdrop,
+  dialog[data-split-nav-dialog][open],
+  dialog[data-split-nav-dialog][open]::backdrop {
     animation: none;
   }
 }

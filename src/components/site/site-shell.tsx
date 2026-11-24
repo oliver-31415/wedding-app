@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
+import type { SitePhoto } from "@/lib/photos-shared";
+import { editAttrs } from "@/lib/edit-targets";
+import { sitePath } from "@/lib/site-paths";
 import {
+  buildPreviewQuery,
   buildSiteStyleVars,
   resolveSiteStyle,
   type ResolvedSiteStyle,
 } from "@/lib/site-styles";
-import { sitePath } from "@/lib/site-paths";
+import { SitePhotoImg } from "./photos/site-photo";
 import { SiteNav, type SiteNavItem } from "./site-nav";
 
 export type SiteShellProps = {
@@ -22,8 +26,19 @@ export type SiteShellProps = {
   savedAccent: string;
   isHost: boolean;
   navItems: SiteNavItem[];
+  /** Home cover photo (used by Split on Home and as fallback when a page has no photo). */
+  coverPhoto?: SitePhoto | null;
+  /** Per-page photos keyed by page href; only populated for pages the viewer may see. */
+  pagePhotos?: Record<string, SitePhoto>;
+  /** Lead paragraph of the Home page body, overlaid on the Split Home photo. */
+  homeGreeting?: string | null;
   children: ReactNode;
 };
+
+function normalizePath(path: string): string {
+  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
+  return path;
+}
 
 function BotanicalSprig() {
   return (
@@ -45,18 +60,6 @@ function BotanicalSprig() {
       <path d="M60 14c4-1 7-3 8-6" opacity="0.65" />
     </svg>
   );
-}
-
-function buildPreviewQuery(params: {
-  style: string | null;
-  accent: string | null;
-  embed: string | null;
-}): string {
-  const qs = new URLSearchParams();
-  if (params.style) qs.set("style", params.style);
-  if (params.accent) qs.set("accent", params.accent);
-  if (params.embed === "1") qs.set("embed", "1");
-  return qs.toString();
 }
 
 function HostPreviewBanner({ resolved }: { resolved: ResolvedSiteStyle }) {
@@ -104,11 +107,13 @@ function UnpublishedScreen({
       ? "font-serif text-3xl font-semibold tracking-tight sm:text-4xl"
       : style.id === "editorial"
         ? "font-serif text-5xl font-normal tracking-tight sm:text-6xl"
-        : style.id === "minimal"
-          ? "font-serif text-2xl font-normal tracking-[0.06em] sm:text-3xl"
-          : style.id === "garden"
-            ? "font-serif text-4xl font-normal sm:text-5xl"
-            : "font-serif text-4xl font-medium sm:text-5xl";
+        : style.id === "split"
+          ? "font-serif text-4xl font-normal tracking-tight sm:text-5xl"
+          : style.id === "minimal"
+            ? "font-serif text-2xl font-normal tracking-[0.06em] sm:text-3xl"
+            : style.id === "garden"
+              ? "font-serif text-4xl font-normal sm:text-5xl"
+              : "font-serif text-4xl font-medium sm:text-5xl";
 
   return (
     <div
@@ -125,7 +130,7 @@ function UnpublishedScreen({
       <h1 className={headingClass}>
         {partnerOne} &amp; {partnerTwo}
       </h1>
-      {style.id === "editorial" && (
+      {(style.id === "editorial" || style.id === "split") && (
         <div className="my-5 h-px w-14 bg-accent" aria-hidden="true" />
       )}
       <p className="mt-4 text-sm text-ink-muted">
@@ -144,6 +149,9 @@ export function SiteShellView({
   published,
   isHost,
   navItems,
+  coverPhoto = null,
+  pagePhotos,
+  homeGreeting = null,
   resolved,
   previewQuery,
   children,
@@ -151,6 +159,10 @@ export function SiteShellView({
   resolved: ResolvedSiteStyle;
   previewQuery: string;
 }) {
+  const pathname = usePathname();
+  // The couple's names open "Names, date and location" in the visual editor.
+  const namesAttrs = editAttrs(isHost, { kind: "names" }, "Names, date and location");
+
   if (!published && !isHost) {
     return (
       <UnpublishedScreen
@@ -183,7 +195,7 @@ export function SiteShellView({
         <header className="pt-10 pb-2 text-center sm:pt-14">
           <div className="mx-auto max-w-3xl px-4">
             <Link href={homeHref} className="inline-block">
-              <span className="font-serif text-4xl font-medium tracking-normal text-ink sm:text-5xl">
+              <span {...namesAttrs} className="font-serif text-4xl font-medium tracking-normal text-ink sm:text-5xl">
                 {partnerOne} &amp; {partnerTwo}
               </span>
             </Link>
@@ -209,7 +221,7 @@ export function SiteShellView({
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
             <div className="min-w-0">
               <Link href={homeHref} className="inline-block">
-                <span className="font-serif text-lg font-semibold tracking-tight text-ink sm:text-xl">
+                <span {...namesAttrs} className="font-serif text-lg font-semibold tracking-tight text-ink sm:text-xl">
                   {partnerOne} &amp; {partnerTwo}
                 </span>
               </Link>
@@ -243,7 +255,7 @@ export function SiteShellView({
           <div className="mx-auto max-w-3xl">
             <BotanicalSprig />
             <Link href={homeHref} className="inline-block">
-              <span className="font-serif text-4xl font-normal tracking-tight text-ink sm:text-6xl">
+              <span {...namesAttrs} className="font-serif text-4xl font-normal tracking-tight text-ink sm:text-6xl">
                 {partnerOne}{" "}
                 <span className="text-accent italic">&amp;</span>{" "}
                 {partnerTwo}
@@ -274,7 +286,7 @@ export function SiteShellView({
             <div>
               <div className="flex items-start justify-between gap-4 md:block">
                 <Link href={homeHref} className="block">
-                  <span className="block font-serif text-3xl leading-[1.06] font-normal tracking-tight text-ink md:text-5xl">
+                  <span {...namesAttrs} className="block font-serif text-3xl leading-[1.06] font-normal tracking-tight text-ink md:text-5xl">
                     <span className="md:block">{partnerOne}</span>{" "}
                     <span className="text-accent italic md:my-0.5 md:block md:text-3xl">&amp;</span>{" "}
                     <span className="md:block">{partnerTwo}</span>
@@ -303,6 +315,137 @@ export function SiteShellView({
     );
   }
 
+  // ------------------------------------------------ 6. Split (split-photo)
+  if (style.layout.header === "split-photo") {
+    const normalizedPath = normalizePath(pathname || sitePath(siteBase));
+    const normalizedHome = normalizePath(sitePath(siteBase));
+    const isHome = normalizedPath === normalizedHome;
+    const activePhoto = (pagePhotos && pagePhotos[normalizedPath]) || coverPhoto || null;
+    // What clicking the big photo edits in the visual editor: the cover on Home,
+    // otherwise this page's own photo (it shows the cover until it has one).
+    const homeNav = navItems.find((n) => normalizePath(n.href) === normalizedHome);
+    const currentNav = navItems.find((n) => normalizePath(n.href) === normalizedPath);
+    const photoTarget = isHome
+      ? { target: { kind: "cover" } as const, label: "Cover photo" }
+      : currentNav
+        ? { target: { kind: "page-photo", pageId: currentNav.id } as const, label: "Page photo" }
+        : null;
+    const coupleLabel = `${partnerOne} & ${partnerTwo}`;
+
+    return (
+      <div {...wrapperProps} className="flex min-h-screen flex-col">
+        {showBanner && <HostPreviewBanner resolved={resolved} />}
+        <div className="flex flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <aside
+            data-split-photo-panel="true"
+            className="relative flex h-[65svh] min-h-[24rem] max-h-[38rem] w-full flex-col justify-between overflow-hidden lg:sticky lg:top-0 lg:h-[100dvh] lg:min-h-0 lg:max-h-none"
+            style={
+              activePhoto
+                ? { backgroundColor: "#141210" }
+                : {
+                    backgroundColor: "var(--color-accent)",
+                    backgroundImage:
+                      "radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--color-accent-ink) 12%, transparent), transparent 62%)",
+                    color: "var(--color-accent-ink)",
+                  }
+            }
+          >
+            {!activePhoto && isHost && photoTarget && (
+              // Nothing to show yet: the empty panel is still clickable in the visual editor.
+              <div className="absolute inset-0" {...editAttrs(isHost, photoTarget.target, photoTarget.label)} />
+            )}
+            {activePhoto && (
+              <>
+                <div className="absolute inset-0" {...(photoTarget ? editAttrs(isHost, photoTarget.target, photoTarget.label) : {})}>
+                  <SitePhotoImg
+                    key={activePhoto.id}
+                    photo={activePhoto}
+                    alt={activePhoto.alt?.trim() || coupleLabel}
+                    priority
+                  />
+                </div>
+                <div
+                  aria-hidden="true"
+                  data-split-scrim="true"
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(to top, rgba(12, 10, 9, 0.78) 0%, rgba(12, 10, 9, 0.55) 22%, rgba(12, 10, 9, 0.18) 42%, rgba(12, 10, 9, 0) 60%, rgba(12, 10, 9, 0) 84%, rgba(12, 10, 9, 0.22) 100%)",
+                  }}
+                />
+              </>
+            )}
+
+            <div className="relative z-10 flex items-start justify-between p-5 sm:p-7 lg:p-8">
+              <SiteNav
+                items={navItems}
+                variant="menu-drawer"
+                previewQuery={previewQuery}
+                mobileSubtitle={subtitle || null}
+                drawerHeading={coupleLabel}
+                onPhoto={Boolean(activePhoto)}
+              />
+            </div>
+
+            <div
+              {...namesAttrs}
+              data-split-overlay-text="true"
+              className="relative z-10 px-6 pb-8 sm:px-9 sm:pb-10 lg:px-11 lg:pb-12"
+              style={{
+                color: activePhoto ? "#ffffff" : "var(--color-accent-ink)",
+                // Keeps white text readable over bright patches of a photo, with a lighter shade.
+                textShadow: activePhoto ? "0 1px 2px rgba(0,0,0,.45), 0 0 24px rgba(0,0,0,.35)" : undefined,
+              }}
+            >
+              {isHome ? (
+                <h1 className="font-serif text-4xl leading-[1.08] font-normal tracking-tight sm:text-5xl xl:text-6xl">
+                  {partnerOne} &amp; {partnerTwo}
+                </h1>
+              ) : (
+                <Link href={homeHref} className="inline-block hover:opacity-90">
+                  <span className="block font-serif text-3xl leading-[1.1] font-normal tracking-tight sm:text-4xl xl:text-5xl">
+                    {partnerOne} &amp; {partnerTwo}
+                  </span>
+                </Link>
+              )}
+
+              {subtitle && (
+                <p
+                  className="mt-3 text-xs font-medium tracking-[0.18em] uppercase sm:text-sm"
+                  style={{
+                    color: activePhoto
+                      ? "rgba(255, 255, 255, 0.94)"
+                      : "color-mix(in srgb, var(--color-accent-ink) 88%, transparent)",
+                  }}
+                >
+                  {subtitle}
+                </p>
+              )}
+
+              {isHome && homeGreeting && (
+                <p
+                  {...(homeNav ? editAttrs(isHost, { kind: "page", pageId: homeNav.id }, "Welcome message") : {})}
+                  className="mt-4 max-w-lg text-base leading-relaxed sm:text-lg"
+                  style={{
+                    color: activePhoto
+                      ? "rgba(255, 255, 255, 0.96)"
+                      : "color-mix(in srgb, var(--color-accent-ink) 94%, transparent)",
+                  }}
+                >
+                  {homeGreeting}
+                </p>
+              )}
+            </div>
+          </aside>
+
+          <main className="flex min-w-0 flex-1 flex-col bg-canvas px-5 py-10 sm:px-8 lg:min-h-[100dvh] lg:px-10 lg:py-14 xl:px-14">
+            <div className="mx-auto flex w-full max-w-lg flex-1 flex-col">{children}</div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   // ---------------------------------------------------- 5. Minimal (monogram)
   return (
     <div {...wrapperProps} className="flex min-h-screen flex-col">
@@ -310,7 +453,7 @@ export function SiteShellView({
       <header className="px-5 pt-14 pb-6 text-center sm:pt-20 sm:pb-8">
         <div className="mx-auto max-w-xl">
           <Link href={homeHref} className="inline-block">
-            <span className="font-serif text-2xl font-normal tracking-[0.06em] text-ink sm:text-3xl">
+            <span {...namesAttrs} className="font-serif text-2xl font-normal tracking-[0.06em] text-ink sm:text-3xl">
               {partnerOne} &amp; {partnerTwo}
             </span>
           </Link>
@@ -332,7 +475,7 @@ export function SiteShellView({
 
 /**
  * Client shell that reads ?style=, ?accent=, and ?embed= ONLY when `isHost` is
- * true, so hosts can live-preview all 5 presets while guests always see the
+ * true, so hosts can live-preview all 6 presets while guests always see the
  * couple's saved design.
  */
 export function SiteShell(props: SiteShellProps) {
@@ -367,6 +510,9 @@ export function SiteShell(props: SiteShellProps) {
       published={props.published}
       isHost={props.isHost}
       navItems={props.navItems}
+      coverPhoto={props.coverPhoto}
+      pagePhotos={props.pagePhotos}
+      homeGreeting={props.homeGreeting}
       resolved={resolved}
       previewQuery={previewQuery}
     >

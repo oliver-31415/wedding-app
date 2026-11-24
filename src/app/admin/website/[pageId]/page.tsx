@@ -4,13 +4,13 @@ import { notFound } from "next/navigation";
 import { deletePageAction } from "@/app/admin/website/actions";
 import { PageItemsEditor } from "@/components/admin/website/page-items-editor";
 import { PageSettingsForm } from "@/components/admin/website/page-settings-form";
-import { CoverPhotoCard, GalleryEditor } from "@/components/admin/website/photo-editor";
+import { CoverPhotoCard, GalleryEditor, PagePhotoCard } from "@/components/admin/website/photo-editor";
 import { BackLink, Badge, buttonClass, Card, CardBody, CardHeader, ConfirmButton, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { requireHost } from "@/lib/auth";
 import { formatDateLong } from "@/lib/dates";
 import { PAGE_TYPE_META, pageUrl, VISIBILITY_META } from "@/lib/pages";
-import { getCoverPhoto, getGalleryPhotos, getItemPhotos, photosGoToo } from "@/lib/photos";
+import { getCoverPhoto, getGalleryPhotos, getItemPhotos, getPagePhoto, photosGoToo } from "@/lib/photos";
 import { pageTakesItemPhotos, type SitePhoto } from "@/lib/photos-shared";
 
 export default async function WebsitePageEditor({
@@ -61,12 +61,13 @@ export default async function WebsitePageEditor({
       : Promise.resolve(0),
   ]);
 
-  const [coverPhoto, itemPhotos, galleryPhotos] = await Promise.all([
+  const [coverPhoto, pagePhoto, itemPhotos, galleryPhotos] = await Promise.all([
     page.type === "home" ? getCoverPhoto(wedding.id) : null,
+    page.type !== "home" ? getPagePhoto(wedding.id, page.id) : null,
     pageTakesItemPhotos(page.type) ? getItemPhotos(wedding.id, page.id) : new Map<string, SitePhoto>(),
     page.type === "photos" ? getGalleryPhotos(wedding.id, page.id) : [],
   ]);
-  const photoCount = (coverPhoto ? 1 : 0) + itemPhotos.size + galleryPhotos.length;
+  const photoCount = (coverPhoto ? 1 : 0) + (pagePhoto ? 1 : 0) + itemPhotos.size + galleryPhotos.length;
 
   return (
     <div className="space-y-6">
@@ -83,6 +84,9 @@ export default async function WebsitePageEditor({
         description={meta.label}
         actions={
           <>
+            <LinkButton href={`/editor/${page.id}`} size="sm">
+              Visual editor
+            </LinkButton>
             <a
               href={previewHref}
               target="_blank"
@@ -228,7 +232,7 @@ export default async function WebsitePageEditor({
         </Card>
       )}
 
-      {page.type === "home" && <CoverPhotoCard photo={coverPhoto} />}
+      {page.type === "home" ? <CoverPhotoCard photo={coverPhoto} /> : <PagePhotoCard pageId={page.id} photo={pagePhoto} />}
 
       {page.type === "photos" && <GalleryEditor pageId={page.id} photos={galleryPhotos} />}
 

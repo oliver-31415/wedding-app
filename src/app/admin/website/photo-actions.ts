@@ -8,6 +8,7 @@ import {
   moveGalleryPhoto,
   setCoverPhoto,
   setItemPhoto,
+  setPagePhoto,
   updatePhotoDetails,
 } from "@/lib/photos";
 import { revalidateWedding } from "@/lib/revalidate";
@@ -33,6 +34,18 @@ export async function setCoverPhotoAction(_prev: ActionState, formData: FormData
   if (!res.ok) return fail(res.error, { photo: res.error });
   revalidateWedding();
   return ok("Cover photo saved.");
+}
+
+export async function setPagePhotoAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { wedding } = await requireHost();
+  const pageId = text(formData, "pageId");
+  const file = uploadedFile(formData);
+  if (!pageId) return fail("Page not found.");
+  if (!file) return fail("Choose a photo to upload.", { photo: "Choose a photo to upload." });
+  const res = await setPagePhoto(wedding.id, pageId, file, details(formData));
+  if (!res.ok) return fail(res.error, { photo: res.error });
+  revalidateWedding();
+  return ok("Page photo saved.");
 }
 
 export async function setItemPhotoAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

@@ -170,6 +170,36 @@ export function PhotoGallery({
         })}
       </div>
     );
+  } else if (styleId === "split") {
+    // Split: clean 2-up gallery grid inside the narrower right column
+    // (or a single framed photo when there's only one).
+    grid = (
+      <div
+        className={
+          photos.length === 1
+            ? "mx-auto max-w-md"
+            : "grid grid-cols-2 gap-3 sm:gap-4"
+        }
+      >
+        {photos.map((photo, i) => (
+          <figure key={photo.id} className="min-w-0">
+            <button
+              type="button"
+              onClick={(e) => openPhoto(i, e.currentTarget)}
+              aria-label={triggerLabel(photo, i, photos.length)}
+              className="group block aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-[var(--radius-card)] border border-line bg-sunken"
+            >
+              <SitePhotoImg photo={photo} alt={galleryAlt(photo)} className={hoverScale} />
+            </button>
+            {photo.caption && (
+              <figcaption className="mt-2 text-center text-xs leading-snug text-ink-muted">
+                {photo.caption}
+              </figcaption>
+            )}
+          </figure>
+        ))}
+      </div>
+    );
   } else {
     // Classic: 2-col matted frames with centred caption inside the mat
     // (one photo on its own is centred rather than left in half the row).

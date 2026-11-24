@@ -6,7 +6,7 @@ import type { ActionState } from "@/lib/forms";
 import { CopyButton } from "@/components/ui";
 import { currencyOptions, timeZoneOptions } from "./helpers";
 
-type WeddingGeneralProps = {
+export type WeddingGeneralProps = {
   partnerOne: string;
   partnerTwo: string;
   date: string | null;

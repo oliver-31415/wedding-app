@@ -2,6 +2,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { HostRsvpEditor } from "@/components/admin/guests/host-rsvp-editor";
 import { HouseholdForm } from "@/components/admin/guests/household-form";
+import { HouseholdMessages } from "@/components/admin/guests/household-messages";
 import { InviteLinkCard } from "@/components/admin/guests/invite-link-card";
 import { BackLink, Badge, Card, CardBody, CardHeader, PageHeader, TextBlock } from "@/components/ui";
 import { db, schema } from "@/db";
@@ -87,7 +88,11 @@ export default async function HouseholdPage({ params }: PageProps<"/admin/guests
         actions={<Badge tone={stateMeta.tone}>{stateMeta.label}</Badge>}
       />
 
-      <InviteLinkCard householdId={householdRow.id} inviteUrl={inviteUrl} />
+      <InviteLinkCard
+        householdId={householdRow.id}
+        inviteUrl={inviteUrl}
+        contactUrl={`${appUrl()}/contact/${householdRow.inviteToken}`}
+      />
 
       <HostRsvpEditor
         householdId={householdRow.id}
@@ -116,6 +121,8 @@ export default async function HouseholdPage({ params }: PageProps<"/admin/guests
         plusOnes={plusOnes}
         tags={allTags}
       />
+
+      <HouseholdMessages weddingId={wedding.id} timeZone={wedding.timeZone} householdId={householdRow.id} snapshot={snapshot} />
 
       <Card>
         <CardHeader title="Activity" description="Latest RSVP submissions and updates for this household." />

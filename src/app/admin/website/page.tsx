@@ -94,7 +94,7 @@ export default async function WebsitePagesPage() {
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
-                        href={`/admin/website/${page.id}`}
+                        href={`/editor/${page.id}`}
                         className="font-medium text-ink hover:text-brand hover:underline"
                       >
                         {page.title}
@@ -115,8 +115,11 @@ export default async function WebsitePagesPage() {
                       isLast={i === pages.length - 1}
                       label={page.title}
                     />
-                    <LinkButton href={`/admin/website/${page.id}`} variant="secondary" size="sm">
+                    <LinkButton href={`/editor/${page.id}`} variant="secondary" size="sm">
                       Edit
+                    </LinkButton>
+                    <LinkButton href={`/admin/website/${page.id}`} variant="ghost" size="sm">
+                      Settings
                     </LinkButton>
                     <a
                       href={href}

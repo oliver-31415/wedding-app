@@ -1,31 +1,34 @@
 import type { CSSProperties } from "react";
 
-export const SITE_STYLE_IDS = ["classic", "modern", "garden", "editorial", "minimal"] as const;
+export const SITE_STYLE_IDS = ["classic", "modern", "garden", "editorial", "minimal", "split"] as const;
 export type SiteStyleId = (typeof SITE_STYLE_IDS)[number];
 
-export type SiteHeaderLayout = "centered" | "topbar" | "hero-band" | "split" | "monogram";
-export type SiteNavStyle = "underline" | "bar" | "pills" | "sidebar" | "small-caps";
-export type SiteContentTreatment = "cards" | "rules" | "soft-panels" | "editorial-cards" | "flat";
+export type SiteHeaderLayout = "centered" | "topbar" | "hero-band" | "split" | "monogram" | "split-photo";
+export type SiteNavStyle = "underline" | "bar" | "pills" | "sidebar" | "small-caps" | "menu-drawer";
+export type SiteContentTreatment = "cards" | "rules" | "soft-panels" | "editorial-cards" | "flat" | "split-clean";
 export type SiteScheduleLayout =
   | "cards"
   | "compact-list"
   | "timeline"
   | "editorial-stack"
-  | "centered-list";
+  | "centered-list"
+  | "split-stack";
 export type SitePartyLayout =
   | "card-grid"
   | "rule-grid"
   | "soft-grid"
   | "editorial-list"
-  | "centered-list";
+  | "centered-list"
+  | "split-list";
 export type SiteFaqLayout =
   | "accordion"
   | "accordion-rules"
   | "soft-accordion"
   | "open-list"
-  | "open-centered";
+  | "open-centered"
+  | "split-accordion";
 export type SiteRadius = "md" | "sharp" | "lg" | "sm" | "none";
-export type SiteHeadingScale = "classic" | "compact" | "expressive" | "dramatic" | "understated";
+export type SiteHeadingScale = "classic" | "compact" | "expressive" | "dramatic" | "understated" | "split";
 
 export type SitePalette = {
   canvas: string;
@@ -278,6 +281,47 @@ export const SITE_STYLES: Record<SiteStyleId, SiteStyleSpec> = {
       maxWidth: "narrow",
     },
   },
+  split: {
+    id: "split",
+    name: "Split",
+    description: "A large photo beside every page, like a magazine spread.",
+    layoutSummary: "Fixed photo · Scrolling column",
+    defaultAccent: "#35526c",
+    defaultAccentName: "Slate blue",
+    palette: {
+      canvas: "#f9f8f6",
+      surface: "#ffffff",
+      sunken: "#f0ede8",
+      line: "#e5e0d8",
+      lineStrong: "#ccc4b8",
+      control: "#877f74",
+      ink: "#1c1917",
+      inkMuted: "#57524b",
+      inkFaint: "#6b655d",
+      accentInk: "#ffffff",
+    },
+    fonts: {
+      heading: "var(--font-playfair), ui-serif, Georgia, serif",
+      body: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+      headingKind: "serif",
+      headingLabel: "Playfair Display",
+      bodyLabel: "Inter",
+    },
+    layout: {
+      header: "split-photo",
+      nav: "menu-drawer",
+      content: "split-clean",
+      schedule: "split-stack",
+      party: "split-list",
+      faq: "split-accordion",
+      radius: "md",
+      cardRadius: "0.75rem",
+      controlRadius: "0.5rem",
+      headingScale: "split",
+      alignment: "center",
+      maxWidth: "narrow",
+    },
+  },
 };
 
 export const SITE_STYLE_LIST: readonly SiteStyleSpec[] = SITE_STYLE_IDS.map((id) => SITE_STYLES[id]);
@@ -466,4 +510,44 @@ export function firstSearchParam(value: string | string[] | undefined): string |
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value[0] ?? null;
   return null;
+}
+
+/** Preserves host preview query parameters (?style=, ?accent=, ?embed=1) across internal links. */
+export function buildPreviewQuery(params: {
+  style: string | null;
+  accent: string | null;
+  embed: string | null;
+}): string {
+  const qs = new URLSearchParams();
+  if (params.style) qs.set("style", params.style);
+  if (params.accent) qs.set("accent", params.accent);
+  if (params.embed === "1") qs.set("embed", "1");
+  return qs.toString();
+}
+
+export function withPreviewQuery(href: string, previewQuery: string): string {
+  if (!previewQuery) return href;
+  return `${href}${href.includes("?") ? "&" : "?"}${previewQuery}`;
+}
+
+/**
+ * Splits a Home page body into its opening greeting paragraph (shown over the
+ * left photo in the Split style) and any additional paragraphs (shown in the
+ * right column so longer notes stay readable).
+ */
+export function splitHomeBody(body: string | null | undefined): {
+  lead: string | null;
+  rest: string | null;
+} {
+  const trimmed = body?.trim();
+  if (!trimmed) return { lead: null, rest: null };
+  const paragraphs = trimmed
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (paragraphs.length === 0) return { lead: null, rest: null };
+  return {
+    lead: paragraphs[0],
+    rest: paragraphs.length > 1 ? paragraphs.slice(1).join("\n\n") : null,
+  };
 }

@@ -6,13 +6,16 @@ import {
   getWeddingBySlug,
   getWeddingPages,
 } from "@/components/site/site-data";
+import { EditBridge } from "@/components/site/edit-bridge";
 import { SiteShell, SiteShellView } from "@/components/site/site-shell";
 import "@/components/site/site-styles.css";
 import { formatDateLong } from "@/lib/dates";
 import { pageUrl, selectNavPages } from "@/lib/pages";
+import { getCoverPhoto, getPagePhoto } from "@/lib/photos";
+import type { SitePhoto } from "@/lib/photos-shared";
 import { canViewPage, getViewer } from "@/lib/site-access";
 import { ROOT_SITE_SLUG } from "@/lib/site-paths";
-import { resolveSiteStyle } from "@/lib/site-styles";
+import { resolveSiteStyle, splitHomeBody } from "@/lib/site-styles";
 
 export async function generateMetadata({
   params,
@@ -67,6 +70,39 @@ export default async function WeddingSiteLayout({
     isHidden: viewer.isHost && p.visibility === "hidden",
   }));
 
+  let coverPhoto: SitePhoto | null = null;
+  let pagePhotos: Record<string, SitePhoto> | undefined;
+  let homeGreeting: string | null = null;
+
+  // Split renders the active page photo (or cover fallback) and Home greeting
+  // in the shell. Load only for pages this viewer is allowed to see (and skip
+  // completely when a guest views a non-Split site).
+  if ((wedding.published || viewer.isHost) && (wedding.theme === "split" || viewer.isHost)) {
+    const viewableNonHome = pages.filter(
+      (p) => p.type !== "home" && canViewPage(wedding, p, viewer, householdGuests) === "ok",
+    );
+    const [cover, resolvedPagePhotos] = await Promise.all([
+      getCoverPhoto(wedding.id),
+      Promise.all(
+        viewableNonHome.map(async (p) => [
+          pageUrl(wedding.siteBase, p.slug),
+          await getPagePhoto(wedding.id, p.id),
+        ] as const),
+      ),
+    ]);
+    coverPhoto = cover;
+    const map: Record<string, SitePhoto> = {};
+    for (const [href, photo] of resolvedPagePhotos) {
+      if (photo) map[href] = photo;
+    }
+    pagePhotos = map;
+
+    const homePage = pages.find((p) => p.type === "home");
+    if (homePage && canViewPage(wedding, homePage, viewer, householdGuests) === "ok") {
+      homeGreeting = splitHomeBody(homePage.body).lead;
+    }
+  }
+
   const subtitle = [
     wedding.date ? formatDateLong(wedding.date) : null,
     wedding.locationName,
@@ -89,6 +125,9 @@ export default async function WeddingSiteLayout({
     published: wedding.published,
     isHost: viewer.isHost,
     navItems,
+    coverPhoto,
+    pagePhotos,
+    homeGreeting,
   };
 
   if (!viewer.isHost) {
@@ -114,6 +153,8 @@ export default async function WeddingSiteLayout({
       >
         {children}
       </SiteShell>
+      {/* Hosts only: lets the visual editor (/editor/…) click parts of this page. */}
+      <EditBridge />
     </Suspense>
   );
 }

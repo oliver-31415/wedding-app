@@ -7,10 +7,11 @@ import {
 } from "@/components/site/site-data";
 import { pageStyle } from "@/components/site/page-style";
 import { SitePageView } from "@/components/site/site-page-view";
-import { pageUrl, resolveHomeLanding } from "@/lib/pages";
+import { pageUrl, resolveHomeLanding, selectNavPages } from "@/lib/pages";
 import { getCurrentUser } from "@/lib/auth";
 import { canViewPage, getViewer } from "@/lib/site-access";
 import { ROOT_SITE_SLUG, sitePath } from "@/lib/site-paths";
+import { buildPreviewQuery, firstSearchParam } from "@/lib/site-styles";
 
 export default async function WeddingHomePage({
   params,
@@ -32,21 +33,45 @@ export default async function WeddingHomePage({
     getViewerHouseholdGuests(wedding.id, viewer.householdId),
   ]);
 
-  const landing = resolveHomeLanding(pages, (p) =>
-    canViewPage(wedding, p, viewer, householdGuests),
-  );
+  const accessOf = (p: (typeof pages)[number]) =>
+    canViewPage(wedding, p, viewer, householdGuests);
+
+  const landing = resolveHomeLanding(pages, accessOf);
 
   switch (landing.kind) {
-    case "render":
+    case "render": {
+      const sp = await searchParams;
+      const style = pageStyle(wedding, viewer, sp);
+      const navPages = selectNavPages(pages, accessOf);
+      const rsvpPage = navPages.find((p) => p.type === "rsvp");
+      const nextPage =
+        navPages.find((p) => p.type !== "home" && p.type !== "rsvp") ??
+        navPages.find((p) => p.type !== "home") ??
+        null;
+      const previewQuery = viewer.isHost
+        ? buildPreviewQuery({
+            style: firstSearchParam(sp.style) ?? null,
+            accent: firstSearchParam(sp.accent) ?? null,
+            embed: firstSearchParam(sp.embed) ?? null,
+          })
+        : "";
+
       return (
         <SitePageView
           wedding={wedding}
           page={landing.page}
           viewer={viewer}
           householdGuests={householdGuests}
-          style={pageStyle(wedding, viewer, await searchParams)}
+          style={style}
+          editing={viewer.isHost && firstSearchParam(sp.edit) === "1"}
+          homeSplitLinks={{
+            rsvpHref: rsvpPage ? pageUrl(wedding.siteBase, rsvpPage.slug) : null,
+            nextPageHref: nextPage ? pageUrl(wedding.siteBase, nextPage.slug) : null,
+            previewQuery,
+          }}
         />
       );
+    }
     case "redirect":
       redirect(pageUrl(wedding.siteBase, landing.slug));
     case "unlock":

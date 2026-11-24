@@ -65,15 +65,19 @@ export default async function WeddingSubPage({
       return (
         <NeedsGuestCard siteBase={wedding.siteBase} nextPath={pageUrl(wedding.siteBase, page.slug)} />
       );
-    case "ok":
+    case "ok": {
+      const sp = await searchParams;
       return (
         <SitePageView
           wedding={wedding}
           page={page}
           viewer={viewer}
           householdGuests={householdGuests}
-          style={pageStyle(wedding, viewer, await searchParams)}
+          style={pageStyle(wedding, viewer, sp)}
+          // The visual editor's preview (/editor/…): show empty photo slots to click.
+          editing={viewer.isHost && sp.edit === "1"}
         />
       );
+    }
   }
 }

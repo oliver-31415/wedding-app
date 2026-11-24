@@ -3,22 +3,28 @@ import type { SiteStyleId } from "@/lib/site-styles";
 import { SitePhotoImg } from "./site-photo";
 
 /**
- * Renders the wedding's cover photo on the Home page, framed according to the
- * active site style. Never rendered inside SiteShell so Home visibility rules
- * always apply and it never leaks onto /unlock or subpages.
+ * Renders a top-of-page photo (the cover photo on Home, or a page's own photo
+ * on subpages), framed according to the active site style. Never rendered for
+ * the Split style (which renders the photo in the sticky left panel) or inside
+ * SiteShell for the other five styles, so page visibility rules always apply.
  */
 export function CoverPhoto({
   photo,
   partnerOne,
   partnerTwo,
+  fallbackAlt,
   styleId,
 }: {
   photo: SitePhoto;
   partnerOne: string;
   partnerTwo: string;
+  /** Used when photo.alt is blank; defaults to couple's names (Home cover). Pass "" on subpages where the adjacent <h1> names the page. */
+  fallbackAlt?: string;
   styleId: SiteStyleId;
 }) {
-  const alt = photo.alt?.trim() || `${partnerOne} & ${partnerTwo}`;
+  if (styleId === "split") return null;
+
+  const alt = photo.alt?.trim() || (fallbackAlt !== undefined ? fallbackAlt : `${partnerOne} & ${partnerTwo}`);
 
   if (styleId === "modern") {
     return (

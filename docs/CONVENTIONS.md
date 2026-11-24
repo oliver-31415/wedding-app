@@ -31,6 +31,27 @@ cleverness: every screen should look and behave like the others.
 5. **Australian defaults:** AUD, `Australia/Sydney`, en-AU formats, Australian
    spelling (organise, colour, cancelled).
 
+## Contact details and reaching guests
+
+- **Contact details form** (`/contact/{token}`, `src/lib/contact-collector.ts`,
+  pure rules in `src/lib/contacts.ts`). The shared link
+  (`weddings.contactCollectorToken`, null = off) can be used by anyone, so its
+  replies are stored as `contact_submissions` and only change the guest list
+  when the couple applies them (Guests → Contact details). A household's
+  personal link uses its `inviteToken`, which proves who's replying, so those
+  replies apply straight away. Blank fields never erase existing details.
+- **Who a message reached** (`src/lib/messaging/reach.ts`). Emails create
+  `message_deliveries` with `method = "email"`. Guests the message was meant for
+  but who weren't emailed (no address, or added since) are "not reached yet",
+  and the couple can mark them posted / texted / in person / other — those
+  count as reached exactly like emails. Never invent a delivery the couple
+  didn't record.
+- **Visual editor** (`/editor/[pageId]`): the guest page in an iframe with
+  `?edit=1`. Editable parts carry `editAttrs(...)` from `src/lib/edit-targets.ts`
+  (hosts only); `EditBridge` turns clicks into messages that open the matching
+  panel. New editable content needs a target there and a panel in
+  `src/components/admin/editor/visual-editor.tsx`.
+
 ## Commands
 
 ```

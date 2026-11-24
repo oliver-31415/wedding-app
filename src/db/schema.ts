@@ -119,6 +119,13 @@ export const weddings = sqliteTable("weddings", {
   /** Shown after RSVPs close. Null = a plain "RSVPs are closed" line. */
   rsvpClosedMessage: text("rsvp_closed_message"),
 
+  /**
+   * Secret in the shared "send us your contact details" link (/contact/{token}).
+   * Null = the collector is off. Replies through it wait for the couple's
+   * review; personal links use the household's inviteToken and apply directly.
+   */
+  contactCollectorToken: text("contact_collector_token").unique(),
+
   createdAt: createdAt(),
 });
 
@@ -234,12 +241,14 @@ export const pageItems = sqliteTable(
 
 // ---------------------------------------------------------------- photos
 
-export const PHOTO_KINDS = ["cover", "item", "gallery"] as const;
+export const PHOTO_KINDS = ["cover", "page", "item", "gallery"] as const;
 export type PhotoKind = (typeof PHOTO_KINDS)[number];
 
 /**
  * Curated photos (no video, ever). Caps live in src/lib/photos-shared.ts.
- *  cover:   one per wedding, shown on the Home page
+ *  cover:   one per wedding: the Home page's photo, and the fallback for pages
+ *           without their own in designs that always show one (Split)
+ *  page:    one per page (`pageId`): that page's own photo
  *  item:    one per story milestone / wedding-party member (`pageItemId`)
  *  gallery: up to 12 on the Photos page (`pageId`), ordered by `position`
  * Files live in UPLOAD_DIR; delete them with the row (src/lib/photos.ts).
@@ -267,10 +276,11 @@ export const photos = sqliteTable(
   (t) => [
     uniqueIndex("photos_one_cover").on(t.weddingId).where(sql`${t.kind} = 'cover'`),
     uniqueIndex("photos_one_per_item").on(t.pageItemId),
+    uniqueIndex("photos_one_per_page").on(t.pageId).where(sql`${t.kind} = 'page'`),
     index("photos_page").on(t.pageId, t.position),
     check(
       "photos_owner",
-      sql`(${t.kind} = 'cover' AND ${t.pageItemId} IS NULL AND ${t.pageId} IS NULL) OR (${t.kind} = 'item' AND ${t.pageItemId} IS NOT NULL AND ${t.pageId} IS NULL) OR (${t.kind} = 'gallery' AND ${t.pageId} IS NOT NULL AND ${t.pageItemId} IS NULL)`,
+      sql`(${t.kind} = 'cover' AND ${t.pageItemId} IS NULL AND ${t.pageId} IS NULL) OR (${t.kind} = 'item' AND ${t.pageItemId} IS NOT NULL AND ${t.pageId} IS NULL) OR (${t.kind} IN ('page', 'gallery') AND ${t.pageId} IS NOT NULL AND ${t.pageItemId} IS NULL)`,
     ),
   ],
 );
@@ -627,6 +637,10 @@ export const messages = sqliteTable(
   (t) => [index("messages_wedding").on(t.weddingId)],
 );
 
+/** How a message reached someone. Everything but "email" is recorded by the couple. */
+export const DELIVERY_METHODS = ["email", "post", "text", "in_person", "other"] as const;
+export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
+
 export const messageDeliveries = sqliteTable(
   "message_deliveries",
   {
@@ -638,12 +652,52 @@ export const messageDeliveries = sqliteTable(
     guestId: text("guest_id").references(() => guests.id, {
       onDelete: "set null",
     }),
-    email: text("email").notNull(),
+    /** The address emailed; null when it was delivered another way. */
+    email: text("email"),
+    /** "email" = sent by this app; the others are marked by the couple. */
+    method: text("method", { enum: DELIVERY_METHODS }).notNull().default("email"),
     status: text("status", { enum: ["sent", "failed"] }).notNull(),
     error: text("error"),
     createdAt: createdAt(),
   },
-  (t) => [index("deliveries_message").on(t.messageId)],
+  (t) => [
+    index("deliveries_message").on(t.messageId),
+    check("deliveries_email_or_other", sql`(${t.method} = 'email') = (${t.email} IS NOT NULL)`),
+  ],
+);
+
+/** A person who filled in the contact details form. */
+export type ContactPerson = { firstName: string; lastName: string; email: string | null; phone: string | null };
+export type ContactAddress = {
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  postcode: string | null;
+  country: string | null;
+};
+
+/**
+ * Replies to the contact details form. Shared-link replies are "pending"
+ * until the couple applies them to a household (or dismisses them);
+ * personal-link replies are applied straight away and kept as a record.
+ */
+export const contactSubmissions = sqliteTable(
+  "contact_submissions",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    people: text("people", { mode: "json" }).$type<ContactPerson[]>().notNull(),
+    address: text("address", { mode: "json" }).$type<ContactAddress>().notNull(),
+    note: text("note"),
+    /** Personal link: the household it came from. Shared link: the household it was applied to. */
+    householdId: text("household_id").references(() => households.id, { onDelete: "set null" }),
+    via: text("via", { enum: ["shared", "personal"] }).notNull(),
+    status: text("status", { enum: ["pending", "applied", "dismissed"] }).notNull().default("pending"),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("contact_submissions_wedding").on(t.weddingId, t.status)],
 );
 
 /**

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import type { SiteNavStyle } from "@/lib/site-styles";
+import { useEffect, useRef, useState } from "react";
+import { withPreviewQuery, type SiteNavStyle } from "@/lib/site-styles";
 
 export type SiteNavItem = {
   id: string;
@@ -11,11 +11,6 @@ export type SiteNavItem = {
   href: string;
   isHidden?: boolean;
 };
-
-function withPreviewQuery(href: string, previewQuery: string): string {
-  if (!previewQuery) return href;
-  return `${href}${href.includes("?") ? "&" : "?"}${previewQuery}`;
-}
 
 function HiddenPill() {
   return (
@@ -30,18 +25,176 @@ export function SiteNav({
   variant,
   previewQuery = "",
   mobileSubtitle,
+  drawerHeading,
+  onPhoto = true,
 }: {
   items: SiteNavItem[];
   variant: SiteNavStyle;
   /** Preserves ?style= / ?accent= / ?embed= when hosts navigate inside a live preview. */
   previewQuery?: string;
-  /** Optional date/location shown inside the mobile drawer for topbar layout. */
+  /** Optional date/location shown inside the mobile drawer for topbar/split layouts. */
   mobileSubtitle?: string | null;
+  /** Optional couple heading shown inside the Split navigation drawer. */
+  drawerHeading?: string;
+  /** True when the Split MENU pill sits on top of a photo (uses dark scrim pill). */
+  onPhoto?: boolean;
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closingForNavRef = useRef(false);
+
+  useEffect(() => {
+    if (variant !== "menu-drawer") return;
+    const dialog = dialogRef.current;
+    if (dialog?.open) {
+      closingForNavRef.current = true;
+      dialog.close();
+    }
+  }, [pathname, variant]);
 
   if (items.length === 0) return null;
+
+  // 0. Split — top-left MENU pill opening an accessible modal navigation drawer
+  if (variant === "menu-drawer") {
+    const openDrawer = () => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      closingForNavRef.current = false;
+      if (!dialog.open) dialog.showModal();
+      setMenuOpen(true);
+    };
+
+    const closeDrawer = (forNav = false) => {
+      const dialog = dialogRef.current;
+      closingForNavRef.current = forNav;
+      if (dialog?.open) {
+        dialog.close();
+      } else {
+        setMenuOpen(false);
+      }
+    };
+
+    const handleDialogClose = () => {
+      setMenuOpen(false);
+      if (!closingForNavRef.current) {
+        triggerRef.current?.focus();
+      }
+      closingForNavRef.current = false;
+    };
+
+    return (
+      <>
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={openDrawer}
+          aria-expanded={menuOpen}
+          aria-controls="split-site-nav-dialog"
+          aria-haspopup="dialog"
+          className={
+            onPhoto
+              ? "inline-flex min-h-11 items-center gap-2.5 rounded-full border border-white/30 bg-black/60 px-4 text-[11px] font-semibold tracking-[0.18em] text-white uppercase backdrop-blur-md transition-colors hover:bg-black/75"
+              : "inline-flex min-h-11 items-center gap-2.5 rounded-full border px-4 text-[11px] font-semibold tracking-[0.18em] uppercase transition-opacity hover:opacity-85"
+          }
+          style={
+            onPhoto
+              ? undefined
+              : {
+                  color: "var(--color-accent-ink)",
+                  borderColor: "color-mix(in srgb, var(--color-accent-ink) 35%, transparent)",
+                  backgroundColor: "color-mix(in srgb, var(--color-accent-ink) 12%, transparent)",
+                }
+          }
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 18 14"
+            className="h-3.5 w-4 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          >
+            <path d="M1 2h16M1 7h16M1 12h16" />
+          </svg>
+          <span>Menu</span>
+        </button>
+
+        <dialog
+          ref={dialogRef}
+          id="split-site-nav-dialog"
+          data-split-nav-dialog="true"
+          aria-label="Wedding website navigation"
+          onClose={handleDialogClose}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeDrawer(false);
+          }}
+          className="fixed inset-y-0 left-0 m-0 h-dvh max-h-none w-[min(21rem,86vw)] max-w-none overflow-y-auto border-r border-line bg-canvas p-0 text-ink shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-[2px]"
+        >
+          <div className="flex min-h-full flex-col p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-4 border-b border-line pb-5">
+              <div className="min-w-0">
+                {drawerHeading && (
+                  <p className="font-serif text-xl font-normal tracking-tight text-ink">
+                    {drawerHeading}
+                  </p>
+                )}
+                {mobileSubtitle && (
+                  <p className="mt-1 text-xs tracking-wide text-ink-muted">{mobileSubtitle}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => closeDrawer(false)}
+                aria-label="Close navigation menu"
+                className="-mt-1.5 -mr-2 inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-sunken hover:text-ink"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="size-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                >
+                  <path d="M5 5l10 10M15 5L5 15" />
+                </svg>
+              </button>
+            </div>
+
+            <nav aria-label="Wedding website navigation" className="mt-6 flex-1">
+              <ul className="space-y-1">
+                {items.map((item) => {
+                  const active = pathname === item.href;
+                  return (
+                    <li key={item.id}>
+                      <Link
+                        href={withPreviewQuery(item.href, previewQuery)}
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => closeDrawer(true)}
+                        className="flex min-h-11 items-center justify-between gap-3 border-l-2 py-2.5 pl-4 text-base transition-colors hover:text-ink"
+                        style={{
+                          borderColor: active ? "var(--color-accent)" : "transparent",
+                          color: active ? "var(--color-accent)" : "var(--color-ink)",
+                          fontWeight: active ? 600 : 400,
+                        }}
+                      >
+                        <span className="font-serif text-lg">{item.title}</span>
+                        {item.isHidden && <HiddenPill />}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          </div>
+        </dialog>
+      </>
+    );
+  }
 
   // 1. Classic — centred underline tabs framed by horizontal rules
   if (variant === "underline") {

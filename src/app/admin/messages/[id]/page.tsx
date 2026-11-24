@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db, schema } from "@/db";
 import { DraftEditor } from "@/components/admin/messages/draft-editor";
+import { MarkReachedForm, UnmarkReachedButton } from "@/components/admin/messages/mark-reached";
 import {
   buttonTargetLabel,
   describeRecipients,
@@ -13,7 +14,9 @@ import { requireHost } from "@/lib/auth";
 import { emailEnabled } from "@/lib/email";
 import { appUrl } from "@/lib/email-layout";
 import { MESSAGE_KIND_META } from "@/lib/messaging/templates";
-import { guestName } from "@/lib/rsvp/model";
+import { DELIVERY_METHOD_META } from "@/lib/messaging/delivery-methods";
+import { notReached } from "@/lib/messaging/reach";
+import { guestName, householdLabel } from "@/lib/rsvp/model";
 import { loadSnapshot } from "@/lib/snapshot";
 import { duplicateMessage } from "./actions";
 
@@ -92,6 +95,7 @@ export default async function MessageDetailPage({
       .select({
         id: schema.messageDeliveries.id,
         email: schema.messageDeliveries.email,
+        method: schema.messageDeliveries.method,
         status: schema.messageDeliveries.status,
         error: schema.messageDeliveries.error,
         guestId: schema.messageDeliveries.guestId,
@@ -115,8 +119,17 @@ export default async function MessageDetailPage({
   ]);
 
   const tagNames = new Map(tagRows.map((t) => [t.id, t.name]));
-  const sentCount = deliveries.filter((d) => d.status === "sent").length;
-  const failedCount = deliveries.length - sentCount;
+  const snapshot = await loadSnapshot(wedding.id);
+  const emailedCount = deliveries.filter((d) => d.status === "sent" && d.method === "email").length;
+  const otherCount = deliveries.filter((d) => d.status === "sent" && d.method !== "email").length;
+  const failedCount = deliveries.filter((d) => d.status === "failed").length;
+  const waiting = notReached(snapshot, message, deliveries);
+  // Not reached yet, grouped into households (the usual unit for posting or texting).
+  const waitingByHousehold = [...Map.groupBy(waiting, (w) => w.householdId)].map(([householdId, people]) => {
+    const household = snapshot.households.find((h) => h.id === householdId);
+    const members = snapshot.guests.filter((g) => g.householdId === householdId);
+    return { householdId, label: household ? householdLabel(household, members) : "Household", people };
+  });
 
   return (
     <div className="space-y-6">
@@ -165,16 +178,26 @@ export default async function MessageDetailPage({
 
       <Card>
         <CardHeader
-          title="Deliveries"
-          description={`${sentCount} sent · ${failedCount} failed`}
+          title="Who it reached"
+          description={[
+            `${emailedCount} emailed`,
+            otherCount ? `${otherCount} sent another way` : null,
+            failedCount ? `${failedCount} failed` : null,
+            waiting.length ? `${waiting.length} not reached yet` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         />
         <Table>
           <thead>
             <tr>
               <Th>Guest</Th>
               <Th>Email</Th>
-              <Th>Status</Th>
+              <Th>How</Th>
               <Th>Error</Th>
+              <Th>
+                <span className="sr-only">Undo</span>
+              </Th>
             </tr>
           </thead>
           <tbody>
@@ -192,10 +215,10 @@ export default async function MessageDetailPage({
                     <span className="text-ink-muted">Deleted guest</span>
                   )}
                 </Td>
-                <Td className="text-ink-muted">{d.email}</Td>
+                <Td className="text-ink-muted">{d.email ?? "—"}</Td>
                 <Td>
                   {d.status === "sent" ? (
-                    <Badge tone="good">Sent</Badge>
+                    <Badge tone={DELIVERY_METHOD_META[d.method].tone}>{DELIVERY_METHOD_META[d.method].label}</Badge>
                   ) : (
                     <Badge tone="bad">Failed</Badge>
                   )}
@@ -203,11 +226,48 @@ export default async function MessageDetailPage({
                 <Td className={d.error ? "text-bad" : "text-ink-faint"}>
                   {d.error ?? "—"}
                 </Td>
+                <Td>{d.method !== "email" && <UnmarkReachedButton deliveryId={d.id} />}</Td>
               </tr>
             ))}
           </tbody>
         </Table>
       </Card>
+
+      {waiting.length > 0 && (
+        <Card>
+          <CardHeader
+            title="Not reached yet"
+            description="These guests match this message but weren't emailed: they have no email address, or were added after it went out. If you've posted, texted or told them, mark it here so they count as reached."
+            actions={
+              waiting.length > 1 ? (
+                <MarkReachedForm
+                  messageId={message.id}
+                  guestIds={waiting.map((w) => w.guestId)}
+                  label={`Mark all ${waiting.length}`}
+                  idSuffix="all"
+                />
+              ) : undefined
+            }
+          />
+          <ul className="divide-y divide-line">
+            {waitingByHousehold.map((h) => (
+              <li key={h.householdId} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                <div className="min-w-0 text-sm">
+                  <Link href={`/admin/guests/${h.householdId}`} className="font-medium text-ink hover:text-brand hover:underline">
+                    {h.label}
+                  </Link>
+                  <p className="text-ink-muted">
+                    {h.people
+                      .map((p) => `${p.name}${p.reason === "added_since" ? " (added since)" : " (no email)"}`)
+                      .join(", ")}
+                  </p>
+                </div>
+                <MarkReachedForm messageId={message.id} guestIds={h.people.map((p) => p.guestId)} idSuffix={h.householdId} />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

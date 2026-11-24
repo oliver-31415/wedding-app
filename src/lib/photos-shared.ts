@@ -39,6 +39,7 @@ export const FOCUS_OPTIONS: { value: string; label: string }[] = STOPS.flatMap((
  */
 export const DEFAULT_FOCUS: Record<PhotoKind | "portrait", string> = {
   cover: "50% 20%",
+  page: "50% 20%",
   item: "50% 20%",
   gallery: "50% 20%",
   portrait: "50% 20%",

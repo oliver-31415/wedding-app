@@ -7,23 +7,30 @@ import { SitePhotoImg } from "@/components/site/photos/site-photo";
 import { RsvpPageBody } from "@/components/site/rsvp/rsvp-page-body";
 import { getPageItems, getWeddingEvents, getWeddingTagNames } from "@/components/site/site-data";
 import { cn, TextBlock } from "@/components/ui";
+import { editAttrs, type EditTarget } from "@/lib/edit-targets";
 import type { schema } from "@/db";
 import { describeAudience } from "@/lib/audience";
 import { formatDateLong, formatTimeRange } from "@/lib/dates";
 import { eventNeedsGuest, visibleEvents } from "@/lib/event-visibility";
 import { buildGoogleCalendarUrl, buildGoogleMapsUrl, pageUrl } from "@/lib/pages";
-import { getCoverPhoto, getGalleryPhotos, getItemPhotos } from "@/lib/photos";
+import { getCoverPhoto, getGalleryPhotos, getItemPhotos, getPagePhoto } from "@/lib/photos";
 import { DEFAULT_FOCUS, type SitePhoto } from "@/lib/photos-shared";
 import type { SnapGuest } from "@/lib/rsvp/model";
 import type { Viewer } from "@/lib/site-access";
 import { sitePath } from "@/lib/site-paths";
-import type { SiteStyleSpec } from "@/lib/site-styles";
+import { splitHomeBody, withPreviewQuery, type SiteStyleSpec } from "@/lib/site-styles";
 
 /** `siteBase`: where the guest site lives (src/lib/site-paths.ts). */
 type Wedding = typeof schema.weddings.$inferSelect & { siteBase: string };
 type Page = typeof schema.pages.$inferSelect;
 type Event = Awaited<ReturnType<typeof getWeddingEvents>>[number];
 type Item = Awaited<ReturnType<typeof getPageItems>>[number];
+
+export type HomeSplitLinks = {
+  rsvpHref: string | null;
+  nextPageHref: string | null;
+  previewQuery: string;
+};
 
 /**
  * Renders one guest-site page in the couple's chosen style. Colours and
@@ -37,14 +44,23 @@ export async function SitePageView({
   viewer,
   householdGuests,
   style,
+  homeSplitLinks,
+  editing = false,
 }: {
   wedding: Wedding;
   page: Page;
   viewer: Viewer;
   householdGuests: SnapGuest[];
   style: SiteStyleSpec;
+  /** Optional navigation targets for the Home right panel in the Split preset. */
+  homeSplitLinks?: HomeSplitLinks;
+  /** Inside the visual editor (host only): also show empty slots for photos and entries. */
+  editing?: boolean;
 }) {
   const t = typography(style);
+  // Clickable in the visual editor (hosts only; plain markup for guests).
+  const ea = (target: EditTarget, label: string) => editAttrs(viewer.isHost, target, label);
+  const pageTarget = { kind: "page", pageId: page.id } as const;
   const hiddenBanner =
     viewer.isHost && page.visibility === "hidden" ? (
       <div className="mb-8 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-card)] border border-line bg-sunken px-4 py-2.5 text-xs">
@@ -61,20 +77,105 @@ export async function SitePageView({
     ) : null;
 
   if (page.type === "home") {
+    if (style.id === "split") {
+      const { rest } = splitHomeBody(page.body);
+      const previewQuery = homeSplitLinks?.previewQuery ?? "";
+      const rsvpHref = homeSplitLinks?.rsvpHref
+        ? withPreviewQuery(homeSplitLinks.rsvpHref, previewQuery)
+        : null;
+      const detailsHref = rest
+        ? "#home-details"
+        : homeSplitLinks?.nextPageHref
+          ? withPreviewQuery(homeSplitLinks.nextPageHref, previewQuery)
+          : null;
+
+      return (
+        <div className="flex flex-1 flex-col">
+          {hiddenBanner}
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8 text-center lg:py-12">
+            {rsvpHref && (
+              <Link
+                href={rsvpHref}
+                data-split-rsvp-cta="true"
+                className="inline-flex min-h-12 min-w-[11.5rem] items-center justify-center rounded-full border-2 border-accent px-8 text-xs font-semibold tracking-[0.2em] text-accent uppercase transition-colors hover:bg-accent hover:text-accent-ink"
+              >
+                RSVP
+              </Link>
+            )}
+            {detailsHref &&
+              (detailsHref.startsWith("#") ? (
+                <a
+                  href={detailsHref}
+                  className="inline-flex min-h-11 items-center gap-2 text-xs font-medium tracking-[0.16em] text-ink-muted uppercase transition-colors hover:text-accent"
+                >
+                  <span>View details</span>
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    className="size-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 6l4 4 4-4" />
+                  </svg>
+                </a>
+              ) : (
+                <Link
+                  href={detailsHref}
+                  className="inline-flex min-h-11 items-center gap-2 text-xs font-medium tracking-[0.16em] text-ink-muted uppercase transition-colors hover:text-accent"
+                >
+                  <span>View details</span>
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    className="size-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 6l4 4 4-4" />
+                  </svg>
+                </Link>
+              ))}
+          </div>
+
+          {rest && (
+            <section
+              {...ea(pageTarget, "Welcome message")}
+              id="home-details"
+              className="mx-auto w-full max-w-md border-t border-line pt-10 text-center text-base leading-relaxed text-ink-muted"
+            >
+              <TextBlock text={rest} />
+            </section>
+          )}
+        </div>
+      );
+    }
+
     const coverPhoto = await getCoverPhoto(wedding.id);
     return (
       <div className={style.id === "minimal" ? "space-y-9 sm:space-y-12" : "space-y-10"}>
         {hiddenBanner && <div className={cn("mx-auto", t.width)}>{hiddenBanner}</div>}
-        {coverPhoto && (
-          <CoverPhoto
-            photo={coverPhoto}
-            partnerOne={wedding.partnerOne}
-            partnerTwo={wedding.partnerTwo}
-            styleId={style.id}
-          />
+        {coverPhoto ? (
+          <div {...ea({ kind: "cover" }, "Cover photo")}>
+            <CoverPhoto
+              photo={coverPhoto}
+              partnerOne={wedding.partnerOne}
+              partnerTwo={wedding.partnerTwo}
+              styleId={style.id}
+            />
+          </div>
+        ) : (
+          editing && <EditSlot target={{ kind: "cover" }} label="Add a cover photo" tall />
         )}
         {page.body?.trim() ? (
           <div
+            {...ea(pageTarget, "Welcome message")}
             className={cn(
               "mx-auto text-lg leading-relaxed text-ink sm:text-xl",
               t.width,
@@ -84,14 +185,31 @@ export async function SitePageView({
           >
             <TextBlock text={page.body} />
           </div>
-        ) : null}
+        ) : (
+          editing && <EditSlot target={pageTarget} label="Add a welcome message" />
+        )}
       </div>
     );
   }
 
+  // Existing 5 styles show a page's own photo (no fallback to cover); Split
+  // displays it in the left panel instead.
+  const pagePhoto = style.id !== "split" ? await getPagePhoto(wedding.id, page.id) : null;
+
   // RSVP and gift bodies render their own intro.
   const showIntro = page.type !== "rsvp" && page.type !== "gifts" && !!page.body?.trim();
   let body: ReactNode = null;
+  const itemEdit = viewer.isHost ? { pageId: page.id } : undefined;
+  // What an empty page offers in the visual editor.
+  const emptySlot =
+    page.type === "story" || page.type === "party" || page.type === "faq" ? (
+      <EditSlot
+        target={{ kind: "items", pageId: page.id }}
+        label={{ story: "Add story entries", party: "Add people", faq: "Add questions and answers" }[page.type]}
+      />
+    ) : page.type === "photos" ? (
+      <EditSlot target={{ kind: "gallery", pageId: page.id }} label="Add photos" tall />
+    ) : null;
 
   if (page.type === "schedule") {
     const [all, tagNames] = await Promise.all([
@@ -100,7 +218,7 @@ export async function SitePageView({
     ]);
     const { events, promptToIdentify } = visibleEvents(all, viewer, householdGuests);
     body = (
-      <div className="space-y-8">
+      <div {...ea({ kind: "events" }, "Events")} className="space-y-8">
         {events.length > 0 && (
           <Schedule
             events={events}
@@ -130,33 +248,43 @@ export async function SitePageView({
       getPageItems(wedding.id, page.id),
       getItemPhotos(wedding.id, page.id),
     ]);
-    if (items.length) body = <Story items={items} photos={photos} style={style} />;
+    if (items.length) body = <Story items={items} photos={photos} style={style} edit={itemEdit} />;
   } else if (page.type === "party") {
     const [items, photos] = await Promise.all([
       getPageItems(wedding.id, page.id),
       getItemPhotos(wedding.id, page.id),
     ]);
-    if (items.length) body = <Party items={items} photos={photos} style={style} />;
+    if (items.length) body = <Party items={items} photos={photos} style={style} edit={itemEdit} />;
   } else if (page.type === "photos") {
     const photos = await getGalleryPhotos(wedding.id, page.id);
-    if (photos.length) body = <PhotoGallery photos={photos} styleId={style.id} />;
+    if (photos.length) {
+      body = (
+        <div {...ea({ kind: "gallery", pageId: page.id }, "Photos")}>
+          <PhotoGallery photos={photos} styleId={style.id} />
+        </div>
+      );
+    }
   } else if (page.type === "faq") {
     const items = await getPageItems(wedding.id, page.id);
-    if (items.length) body = <Faq items={items} style={style} />;
+    if (items.length) body = <Faq items={items} style={style} edit={itemEdit} />;
   } else if (page.type === "rsvp") {
     body = (
-      <div className={cn("mx-auto", t.width)}>
+      <div {...ea({ kind: "rsvp" }, "RSVP questions and settings")} className={cn("mx-auto", t.width)}>
         <RsvpPageBody wedding={wedding} page={page} viewer={viewer} />
       </div>
     );
   } else if (page.type === "gifts") {
-    body = <GiftsPageBody wedding={wedding} page={page} viewer={viewer} />;
+    body = (
+      <div {...ea({ kind: "gifts" }, "Gifts and cash funds")}>
+        <GiftsPageBody wedding={wedding} page={page} viewer={viewer} />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-10">
       {hiddenBanner}
-      <header className={cn("mx-auto space-y-3", t.width, t.align)}>
+      <header {...ea(pageTarget, "Title and intro text")} className={cn("mx-auto space-y-3", t.width, t.align)}>
         <h1 className={t.pageHeading}>{page.title}</h1>
         {showIntro && (
           <div className="text-base leading-relaxed text-ink-muted">
@@ -164,10 +292,46 @@ export async function SitePageView({
           </div>
         )}
       </header>
-      {body}
+      {pagePhoto ? (
+        <div {...ea({ kind: "page-photo", pageId: page.id }, "Page photo")}>
+          <CoverPhoto
+            photo={pagePhoto}
+            partnerOne={wedding.partnerOne}
+            partnerTwo={wedding.partnerTwo}
+            fallbackAlt=""
+            styleId={style.id}
+          />
+        </div>
+      ) : (
+        editing &&
+        style.id !== "split" && <EditSlot target={{ kind: "page-photo", pageId: page.id }} label="Add a page photo" />
+      )}
+      {body ?? (editing && emptySlot)}
     </div>
   );
 }
+
+// ------------------------------------------------------------ visual editor
+
+/** A dashed "add something here" box, shown only inside the visual editor. */
+function EditSlot({ target, label, tall = false }: { target: EditTarget; label: string; tall?: boolean }) {
+  return (
+    <div
+      {...editAttrs(true, target, label)}
+      className={cn(
+        "mx-auto flex w-full max-w-2xl items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed border-line-strong bg-sunken/40 text-sm font-medium text-ink-muted",
+        tall ? "aspect-[3/2] max-h-96" : "min-h-24",
+      )}
+    >
+      + {label}
+    </div>
+  );
+}
+
+type ItemEdit = { pageId: string };
+/** `data-edit-*` attributes for one story / party / Q&A entry (hosts only). */
+const entryAttrs = (edit?: ItemEdit) => (itemId: string) =>
+  editAttrs(!!edit, { kind: "items", pageId: edit?.pageId ?? "", itemId }, "This entry");
 
 // ------------------------------------------------------------ typography
 
@@ -182,6 +346,7 @@ function typography(style: SiteStyleSpec) {
       expressive: "font-serif text-4xl font-medium text-ink sm:text-6xl",
       dramatic: "font-serif text-5xl leading-[0.95] font-medium text-ink sm:text-7xl",
       understated: "font-serif text-sm font-medium tracking-[0.35em] text-ink uppercase",
+      split: "font-serif text-3xl font-normal tracking-tight text-ink sm:text-4xl",
     }[scale],
     itemHeading: {
       classic: "font-serif text-2xl font-medium text-ink",
@@ -189,6 +354,7 @@ function typography(style: SiteStyleSpec) {
       expressive: "font-serif text-3xl font-medium text-ink",
       dramatic: "font-serif text-3xl font-medium text-ink sm:text-4xl",
       understated: "font-serif text-base font-medium tracking-wide text-ink",
+      split: "font-serif text-xl font-medium text-ink sm:text-2xl",
     }[scale],
   };
 }
@@ -347,6 +513,25 @@ function Schedule({
           })}
         </ol>
       );
+    case "split-stack":
+      return (
+        <ol className={cn("mx-auto space-y-5", t.width)}>
+          {events.map((e) => {
+            const w = when(e);
+            return (
+              <li
+                key={e.id}
+                className="space-y-3 rounded-[var(--radius-card)] border border-line bg-surface p-6 text-left"
+              >
+                <HostNote text={hostNote(e)} />
+                <p className={eyebrow}>{[w.date, w.time].filter(Boolean).join(" · ")}</p>
+                <h2 className={t.itemHeading}>{e.name}</h2>
+                <EventDetails event={e} wedding={wedding} />
+              </li>
+            );
+          })}
+        </ol>
+      );
     default:
       return (
         <ol className={cn("mx-auto space-y-5", t.width)}>
@@ -389,12 +574,16 @@ function Story({
   items,
   photos,
   style,
+  edit,
 }: {
   items: Item[];
   photos: Map<string, SitePhoto>;
   style: SiteStyleSpec;
+  /** Set for hosts: makes each entry clickable in the visual editor. */
+  edit?: ItemEdit;
 }) {
   const t = typography(style);
+  const ia = entryAttrs(edit);
   let nextPhotoIndex = 0;
   const entries = items.map((item) => {
     const photo = photos.get(item.id);
@@ -413,12 +602,29 @@ function Story({
     </>
   );
 
+  if (style.id === "split") {
+    return (
+      <div className={cn("mx-auto divide-y divide-line", t.width)}>
+        {entries.map(({ item, photo }) => (
+          <article key={item.id} {...ia(item.id)} className="py-8 text-left first:pt-0 last:pb-0">
+            {photo && (
+              <div className="mb-5 aspect-[4/3] overflow-hidden rounded-[var(--radius-card)] border border-line bg-sunken">
+                <SitePhotoImg photo={photo} alt={photo.alt?.trim() ?? ""} />
+              </div>
+            )}
+            {copy(item)}
+          </article>
+        ))}
+      </div>
+    );
+  }
+
   if (style.id === "modern") {
     return (
       <div className={cn("mx-auto divide-y divide-line", t.width)}>
         {entries.map(({ item, photo }) => (
           <article
-            key={item.id}
+            key={item.id} {...ia(item.id)}
             className={cn(
               "py-8 text-left first:pt-0 last:pb-0",
               photo && "md:grid md:grid-cols-[minmax(0,18rem)_1fr] md:items-start md:gap-10",
@@ -440,7 +646,7 @@ function Story({
     return (
       <div className={cn("mx-auto", t.width)}>
         {entries.map(({ item, photo }) => (
-          <article key={item.id} className="border-t border-ink py-8 text-left last:pb-0">
+          <article key={item.id} {...ia(item.id)} className="border-t border-ink py-8 text-left last:pb-0">
             {photo && (
               <div className="mb-5 aspect-[4/3] overflow-hidden rounded-[var(--radius-card)] bg-sunken sm:aspect-[3/2]">
                 <SitePhotoImg photo={photo} alt={photo.alt?.trim() ?? ""} />
@@ -457,7 +663,7 @@ function Story({
     return (
       <div className={cn("mx-auto divide-y divide-line", t.width)}>
         {entries.map(({ item, photo }) => (
-          <article key={item.id} className="py-8 text-center first:pt-0 last:pb-0">
+          <article key={item.id} {...ia(item.id)} className="py-8 text-center first:pt-0 last:pb-0">
             {photo && (
               <div className="mx-auto mb-6 aspect-[4/3] w-full max-w-md overflow-hidden rounded-none border border-line bg-sunken">
                 <SitePhotoImg photo={photo} alt={photo.alt?.trim() ?? ""} />
@@ -479,7 +685,7 @@ function Story({
         const flip = photoIndex % 2 === 1;
         return (
           <article
-            key={item.id}
+            key={item.id} {...ia(item.id)}
             className={cn(
               "rounded-[var(--radius-card)] bg-surface p-6 sm:p-8",
               isClassic && "border border-line",
@@ -518,12 +724,16 @@ function Party({
   items,
   photos,
   style,
+  edit,
 }: {
   items: Item[];
   photos: Map<string, SitePhoto>;
   style: SiteStyleSpec;
+  /** Set for hosts: makes each entry clickable in the visual editor. */
+  edit?: ItemEdit;
 }) {
   const t = typography(style);
+  const ia = entryAttrs(edit);
   const person = (item: Item) => (
     <>
       <h2 className={t.itemHeading}>{item.title}</h2>
@@ -538,13 +748,39 @@ function Party({
   const portraitFocus = (photo: SitePhoto) => photo.focus || DEFAULT_FOCUS.portrait;
 
   switch (style.layout.party) {
+    case "split-list":
+      return (
+        <ul className={cn("mx-auto divide-y divide-line border-y border-line", t.width)}>
+          {items.map((i) => {
+            const photo = photos.get(i.id);
+            return (
+              <li key={i.id} {...ia(i.id)} className="py-6 text-left">
+                {photo ? (
+                  <div className="flex items-start gap-4">
+                    <div className="aspect-square size-20 shrink-0 overflow-hidden rounded-full bg-sunken ring-1 ring-line ring-offset-2 ring-offset-canvas">
+                      <SitePhotoImg
+                        photo={photo}
+                        alt={photo.alt?.trim() ?? ""}
+                        focusOverride={portraitFocus(photo)}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">{person(i)}</div>
+                  </div>
+                ) : (
+                  person(i)
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      );
     case "rule-grid":
       return (
         <ul className={cn("mx-auto grid gap-x-10 sm:grid-cols-2", t.width)}>
           {items.map((i) => {
             const photo = photos.get(i.id);
             return (
-              <li key={i.id} className="border-t border-line py-6">
+              <li key={i.id} {...ia(i.id)} className="border-t border-line py-6">
                 {photo ? (
                   <div className="flex items-start gap-4">
                     <div className="size-20 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-line bg-sunken">
@@ -570,7 +806,7 @@ function Party({
           {items.map((i) => {
             const photo = photos.get(i.id);
             return (
-              <li key={i.id} className="rounded-[var(--radius-card)] bg-surface p-7 text-center">
+              <li key={i.id} {...ia(i.id)} className="rounded-[var(--radius-card)] bg-surface p-7 text-center">
                 {photo && (
                   <div className="mx-auto mb-4 size-24 overflow-hidden rounded-full border-2 border-canvas bg-sunken ring-1 ring-line-strong sm:size-28">
                     <SitePhotoImg
@@ -592,7 +828,7 @@ function Party({
           {items.map((i) => {
             const photo = photos.get(i.id);
             return (
-              <li key={i.id} className="border-t border-ink py-7">
+              <li key={i.id} {...ia(i.id)} className="border-t border-ink py-7">
                 {photo ? (
                   <div className="flex items-start gap-4 sm:gap-7">
                     <div className="aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-[var(--radius-card)] bg-sunken sm:w-28">
@@ -618,7 +854,7 @@ function Party({
           {items.map((i) => {
             const photo = photos.get(i.id);
             return (
-              <li key={i.id}>
+              <li key={i.id} {...ia(i.id)}>
                 {photo && (
                   <div className="mx-auto mb-4 size-20 overflow-hidden rounded-none border border-line bg-sunken">
                     <SitePhotoImg
@@ -641,7 +877,7 @@ function Party({
             const photo = photos.get(i.id);
             return (
               <li
-                key={i.id}
+                key={i.id} {...ia(i.id)}
                 className="rounded-[var(--radius-card)] border border-line bg-surface p-6 text-left"
               >
                 {photo ? (
@@ -676,14 +912,15 @@ function Party({
   }
 }
 
-function Faq({ items, style }: { items: Item[]; style: SiteStyleSpec }) {
+function Faq({ items, style, edit }: { items: Item[]; style: SiteStyleSpec; edit?: ItemEdit }) {
+  const ia = entryAttrs(edit);
   const t = typography(style);
   const layout = style.layout.faq;
   if (layout === "open-list" || layout === "open-centered") {
     return (
       <dl className={cn("mx-auto space-y-8", t.width, layout === "open-centered" && "text-center")}>
         {items.map((i) => (
-          <div key={i.id} className={layout === "open-list" ? "border-t border-ink pt-6" : ""}>
+          <div key={i.id} {...ia(i.id)} className={layout === "open-list" ? "border-t border-ink pt-6" : ""}>
             <dt className={t.itemHeading}>{i.title}</dt>
             {i.body && (
               <dd className="mt-2 text-base leading-relaxed text-ink-muted">
@@ -699,16 +936,18 @@ function Faq({ items, style }: { items: Item[]; style: SiteStyleSpec }) {
     accordion: "divide-y divide-line rounded-[var(--radius-card)] border border-line bg-surface",
     "accordion-rules": "divide-y divide-line border-y border-line",
     "soft-accordion": "space-y-3",
+    "split-accordion": "divide-y divide-line border-y border-line",
   }[layout];
   const row = {
     accordion: "px-6 py-4",
     "accordion-rules": "py-4",
     "soft-accordion": "rounded-[var(--radius-card)] bg-surface px-6 py-4",
+    "split-accordion": "py-4",
   }[layout];
   return (
     <div className={cn("mx-auto text-left", t.width, wrapper)}>
       {items.map((i) => (
-        <details key={i.id} className={cn("group", row)}>
+        <details key={i.id} {...ia(i.id)} className={cn("group", row)}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-1 text-base font-medium text-ink select-none [&::-webkit-details-marker]:hidden">
             <span>{i.title}</span>
             <span aria-hidden className="shrink-0 text-lg leading-none text-accent transition-transform group-open:rotate-45">

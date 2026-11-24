@@ -57,6 +57,20 @@
       "when": 1795529569513,
       "tag": "0007_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795531863494,
+      "tag": "0008_page_photos",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795532542999,
+      "tag": "0009_contacts_and_delivery_methods",
+      "breakpoints": true
     }
   ]
 }

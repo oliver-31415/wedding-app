@@ -8,6 +8,7 @@ import {
   moveGalleryPhotoAction,
   setCoverPhotoAction,
   setItemPhotoAction,
+  setPagePhotoAction,
   updatePhotoAction,
 } from "@/app/admin/website/photo-actions";
 import {
@@ -354,8 +355,11 @@ function EditDetailsForm({
 
 // ---------------------------------------------------------------- cover
 
+/** Cover and page photos fill wide banners, and the tall photo panel of the Split design. */
+const PAGE_CROPS: CropShape[] = ["wide", "square", "tall"];
+
 export function CoverPhotoCard({ photo }: { photo: SitePhoto | null }) {
-  const crops: CropShape[] = ["wide", "landscape", "portrait"];
+  const crops = PAGE_CROPS;
   const upload = (onCancel?: () => void) => (
     <UploadForm
       action={setCoverPhotoAction}
@@ -370,7 +374,7 @@ export function CoverPhotoCard({ photo }: { photo: SitePhoto | null }) {
     <Card>
       <CardHeader
         title="Cover photo"
-        description="One photo at the top of your home page, styled to match your design. Leave it out for a text-only front page."
+        description="The main photo of your site: at the top of your home page, and beside every page that has no photo of its own in the Split design. Leave it out for a text-only front page."
       />
       <CardBody>
         {photo ? (
@@ -379,6 +383,40 @@ export function CoverPhotoCard({ photo }: { photo: SitePhoto | null }) {
             photo={photo}
             crops={crops}
             removeConfirm="Remove the cover photo?"
+            replace={(close) => upload(close)}
+          />
+        ) : (
+          upload()
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+export function PagePhotoCard({ pageId, photo }: { pageId: string; photo: SitePhoto | null }) {
+  const upload = (onCancel?: () => void) => (
+    <UploadForm
+      action={setPagePhotoAction}
+      hidden={{ pageId }}
+      crops={PAGE_CROPS}
+      defaultFocus={photo?.focus ?? DEFAULT_FOCUS.page}
+      submitLabel={photo ? "Use this photo" : "Add page photo"}
+      onCancel={onCancel}
+    />
+  );
+  return (
+    <Card>
+      <CardHeader
+        title="Page photo"
+        description="Optional. Shown at the top of this page, or beside it in the Split design (which uses your cover photo when a page has none)."
+      />
+      <CardBody>
+        {photo ? (
+          <SavedPhoto
+            key={photo.id}
+            photo={photo}
+            crops={PAGE_CROPS}
+            removeConfirm="Remove this page's photo?"
             replace={(close) => upload(close)}
           />
         ) : (

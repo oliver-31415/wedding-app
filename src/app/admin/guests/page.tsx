@@ -1,7 +1,8 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
+import Link from "next/link";
 import { GuestListClient } from "@/components/admin/guests/guest-list-client";
 import { GUESTS_SUBNAV } from "@/components/admin/guests/nav";
-import { LinkButton, PageHeader, SubNav, buttonClass } from "@/components/ui";
+import { LinkButton, Notice, PageHeader, SubNav, buttonClass } from "@/components/ui";
 import { db, schema } from "@/db";
 import { requireHost } from "@/lib/auth";
 import type { GuestListHousehold } from "@/lib/guests/filter";
@@ -69,6 +70,11 @@ export default async function GuestsPage() {
     })
     .sort((a, b) => a.label.localeCompare(b.label, "en-AU"));
 
+  const [{ pendingReplies }] = await db
+    .select({ pendingReplies: sql<number>`count(*)` })
+    .from(schema.contactSubmissions)
+    .where(and(eq(schema.contactSubmissions.weddingId, wedding.id), eq(schema.contactSubmissions.status, "pending")));
+
   return (
     <div>
       <PageHeader
@@ -89,6 +95,15 @@ export default async function GuestsPage() {
         }
       />
       <SubNav items={GUESTS_SUBNAV} current="/admin/guests" />
+      {pendingReplies > 0 && (
+        <div className="mb-4">
+          <Notice tone="info" title={`${pendingReplies} ${pendingReplies === 1 ? "person has" : "people have"} sent contact details`}>
+            <Link href="/admin/guests/contacts" className="font-medium underline">
+              Review and add them to your guest list
+            </Link>
+          </Notice>
+        </div>
+      )}
       <GuestListClient households={households} tags={allTags} hasRsvpEvents={rsvpEvents.length > 0} />
     </div>
   );
