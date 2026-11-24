@@ -20,7 +20,7 @@ import { duplicateMessage } from "./actions";
 export default async function MessageDetailPage({
   params,
 }: PageProps<"/admin/messages/[id]">) {
-  const { user, wedding } = await requireHost();
+  const { user, wedding, siteBase } = await requireHost();
   const { id } = await params;
 
   const [message] = await db
@@ -68,6 +68,7 @@ export default async function MessageDetailPage({
           }}
           wedding={{
             slug: wedding.slug,
+            siteBase,
             partnerOne: wedding.partnerOne,
             partnerTwo: wedding.partnerTwo,
             date: wedding.date,

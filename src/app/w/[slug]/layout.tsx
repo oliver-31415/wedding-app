@@ -11,6 +11,7 @@ import "@/components/site/site-styles.css";
 import { formatDateLong } from "@/lib/dates";
 import { pageUrl, selectNavPages } from "@/lib/pages";
 import { canViewPage, getViewer } from "@/lib/site-access";
+import { ROOT_SITE_SLUG } from "@/lib/site-paths";
 import { resolveSiteStyle } from "@/lib/site-styles";
 
 export async function generateMetadata({
@@ -40,7 +41,11 @@ export default async function WeddingSiteLayout({
 }: LayoutProps<"/w/[slug]">) {
   const { slug } = await params;
   const wedding = await getWeddingBySlug(slug);
-  if (!wedding) notFound();
+  if (!wedding) {
+    // The domain root with no wedding there: the home page sends people to the app.
+    if (slug === ROOT_SITE_SLUG) return children;
+    notFound();
+  }
 
   const viewer = await getViewer(wedding);
 
@@ -58,7 +63,7 @@ export default async function WeddingSiteLayout({
   const navItems = navPages.map((p) => ({
     id: p.id,
     title: p.title,
-    href: pageUrl(wedding.slug, p.slug),
+    href: pageUrl(wedding.siteBase, p.slug),
     isHidden: viewer.isHost && p.visibility === "hidden",
   }));
 
@@ -77,7 +82,7 @@ export default async function WeddingSiteLayout({
 
   // Only non-secret display fields cross the server → client boundary.
   const shellProps = {
-    slug: wedding.slug,
+    siteBase: wedding.siteBase,
     partnerOne: wedding.partnerOne,
     partnerTwo: wedding.partnerTwo,
     subtitle,

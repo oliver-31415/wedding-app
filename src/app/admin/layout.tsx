@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { AdminNav } from "@/components/admin/nav";
 import { SiteBadge } from "@/components/ui";
 import { requireHost } from "@/lib/auth";
+import { sitePath } from "@/lib/site-paths";
 import { isSuperuser } from "@/lib/superusers";
 
 export const metadata: Metadata = { robots: { index: false } };
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  const { user, wedding } = await requireHost();
+  const { user, wedding, siteBase } = await requireHost();
   return (
     <div className="min-h-screen md:grid md:grid-cols-[15rem_1fr]">
       <aside className="border-b border-line bg-surface md:sticky md:top-0 md:h-screen md:border-r md:border-b-0">
@@ -18,7 +19,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
             </p>
             <div className="flex items-center gap-2">
               <SiteBadge published={wedding.published} />
-              <a href={`/w/${wedding.slug}`} target="_blank" className="text-sm text-brand hover:underline">
+              <a href={sitePath(siteBase)} target="_blank" className="text-sm text-brand hover:underline">
                 View site ↗
               </a>
               <form action="/logout" method="post" className="ml-auto md:hidden">

@@ -9,6 +9,7 @@ import { safeNextPath } from "@/lib/pages";
 import { revalidateWedding } from "@/lib/revalidate";
 import { extractClientIp, guestActionLimiter } from "@/lib/rsvp-guest/rate-limit";
 import { getViewer, unlockSite } from "@/lib/site-access";
+import { siteBaseOf } from "@/lib/site-root";
 
 export async function unlockSiteAction(
   _prev: ActionState,
@@ -43,13 +44,13 @@ export async function unlockSiteAction(
   }
 
   const ok = await unlockSite(wedding, attempt);
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   if (!ok) {
     return fail("That password doesn’t match. Check your invitation and try again.", {
       password: "Incorrect password.",
     });
   }
 
-  const next = safeNextPath(text(formData, "next"), wedding.slug);
+  const next = safeNextPath(text(formData, "next"), await siteBaseOf(wedding));
   redirect(next);
 }

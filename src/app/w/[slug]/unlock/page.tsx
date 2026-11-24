@@ -4,6 +4,7 @@ import { getWeddingBySlug } from "@/components/site/site-data";
 import { UnlockForm } from "@/components/site/unlock-form";
 import { safeNextPath } from "@/lib/pages";
 import { getViewer } from "@/lib/site-access";
+import { sitePath } from "@/lib/site-paths";
 
 export const metadata: Metadata = {
   title: "Enter password",
@@ -22,7 +23,8 @@ export default async function UnlockPage({
   if (!wedding.published && !viewer.isHost) return null;
 
   const rawNext = Array.isArray(sp.next) ? sp.next[0] : sp.next;
-  const nextPath = safeNextPath(rawNext, wedding.slug);
+  const nextPath = safeNextPath(rawNext, wedding.siteBase);
+  const findHref = `${sitePath(wedding.siteBase, "find")}?next=${encodeURIComponent(nextPath)}`;
 
   if (!viewer.isHost && (viewer.unlocked || viewer.householdId)) {
     redirect(nextPath);
@@ -34,7 +36,7 @@ export default async function UnlockPage({
       {!wedding.sitePassword ? (
         <p className="mt-3 text-sm leading-relaxed text-ink-muted">
           This page is for invited guests.{" "}
-          <a className="text-accent underline" href={`/w/${wedding.slug}/find?next=${encodeURIComponent(nextPath)}`}>
+          <a className="text-accent underline" href={findHref}>
             Find your invitation
           </a>{" "}
           to see it.
@@ -45,7 +47,7 @@ export default async function UnlockPage({
           <UnlockForm weddingSlug={wedding.slug} nextPath={nextPath} />
           <p className="mt-4 text-sm text-ink-muted">
             Or{" "}
-            <a className="text-accent underline" href={`/w/${wedding.slug}/find?next=${encodeURIComponent(nextPath)}`}>
+            <a className="text-accent underline" href={findHref}>
               find your invitation by name
             </a>
             .

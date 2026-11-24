@@ -98,8 +98,10 @@ describe("nav ordering and home landing", () => {
   });
 
   it("formats home URL to /w/slug and others to /w/slug/page", () => {
-    expect(pageUrl("alex-and-sam", "")).toBe("/w/alex-and-sam");
-    expect(pageUrl("alex-and-sam", "faq")).toBe("/w/alex-and-sam/faq");
+    expect(pageUrl("/w/alex-and-sam", "")).toBe("/w/alex-and-sam");
+    expect(pageUrl("/w/alex-and-sam", "faq")).toBe("/w/alex-and-sam/faq");
+    expect(pageUrl("", "")).toBe("/");
+    expect(pageUrl("", "faq")).toBe("/faq");
   });
 
   it("resolves home landing correctly", () => {
@@ -126,16 +128,16 @@ describe("nav ordering and home landing", () => {
 
 describe("safeNextPath", () => {
   it("allows same-wedding paths and blocks open redirects", () => {
-    expect(safeNextPath("/w/alex-and-sam", "alex-and-sam")).toBe("/w/alex-and-sam");
-    expect(safeNextPath("/w/alex-and-sam/rsvp", "alex-and-sam")).toBe("/w/alex-and-sam/rsvp");
-    expect(safeNextPath("/w/alex-and-sam/rsvp?step=2", "alex-and-sam")).toBe("/w/alex-and-sam/rsvp?step=2");
+    expect(safeNextPath("/w/alex-and-sam", "/w/alex-and-sam")).toBe("/w/alex-and-sam");
+    expect(safeNextPath("/w/alex-and-sam/rsvp", "/w/alex-and-sam")).toBe("/w/alex-and-sam/rsvp");
+    expect(safeNextPath("/w/alex-and-sam/rsvp?step=2", "/w/alex-and-sam")).toBe("/w/alex-and-sam/rsvp?step=2");
 
-    expect(safeNextPath("https://evil.example", "alex-and-sam")).toBe("/w/alex-and-sam");
-    expect(safeNextPath("//evil.example/w/alex-and-sam", "alex-and-sam")).toBe("/w/alex-and-sam");
-    expect(safeNextPath("/w/alex-and-sam-other/rsvp", "alex-and-sam")).toBe("/w/alex-and-sam");
-    expect(safeNextPath("/w/alex-and-sam/../admin", "alex-and-sam")).toBe("/w/alex-and-sam");
-    expect(safeNextPath("/admin", "alex-and-sam")).toBe("/w/alex-and-sam");
-    expect(safeNextPath(null, "alex-and-sam")).toBe("/w/alex-and-sam");
+    expect(safeNextPath("https://evil.example", "/w/alex-and-sam")).toBe("/w/alex-and-sam");
+    expect(safeNextPath("//evil.example/w/alex-and-sam", "/w/alex-and-sam")).toBe("/w/alex-and-sam");
+    expect(safeNextPath("/w/alex-and-sam-other/rsvp", "/w/alex-and-sam")).toBe("/w/alex-and-sam");
+    expect(safeNextPath("/w/alex-and-sam/../admin", "/w/alex-and-sam")).toBe("/w/alex-and-sam");
+    expect(safeNextPath("/admin", "/w/alex-and-sam")).toBe("/w/alex-and-sam");
+    expect(safeNextPath(null, "/w/alex-and-sam")).toBe("/w/alex-and-sam");
   });
 });
 

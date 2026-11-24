@@ -15,7 +15,7 @@ function revalidateSchedule(weddingSlug: string, eventId?: string) {
   revalidatePath("/admin/schedule");
   if (eventId) revalidatePath(`/admin/schedule/${eventId}`);
   revalidatePath("/admin/rsvp");
-  revalidateWedding(weddingSlug);
+  revalidateWedding();
 }
 
 export async function saveEventAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

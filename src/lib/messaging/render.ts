@@ -1,9 +1,12 @@
 import { formatDateLong } from "@/lib/dates";
 import { appUrl, renderEmail } from "@/lib/email-layout";
+import { sitePath, slugBase } from "@/lib/site-paths";
 import { DEFAULT_BUTTON_LABELS, type ButtonTarget } from "./templates";
 
 export type RenderWedding = {
   slug: string;
+  /** Guest-site base when it isn't /w/{slug}: "" for a wedding served at the root. */
+  siteBase?: string;
   partnerOne: string;
   partnerTwo: string;
   date: string | null;
@@ -48,21 +51,19 @@ function substituteTokens(
 
 export function resolveButtonUrl(
   target: ButtonTarget,
-  slug: string,
+  wedding: Pick<RenderWedding, "slug" | "siteBase">,
   inviteToken: string | null | undefined,
   baseUrl?: string,
 ): string {
-  const base = (baseUrl ?? appUrl()).replace(/\/$/, "");
-  const encodedSlug = encodeURIComponent(slug);
+  const origin = (baseUrl ?? appUrl()).replace(/\/$/, "");
+  const site = wedding.siteBase ?? slugBase(encodeURIComponent(wedding.slug));
   switch (target) {
     case "site":
-      return `${base}/w/${encodedSlug}`;
+      return `${origin}${sitePath(site)}`;
     case "rsvp":
-      return inviteToken
-        ? `${base}/w/${encodedSlug}/i/${encodeURIComponent(inviteToken)}`
-        : `${base}/w/${encodedSlug}/rsvp`;
+      return `${origin}${sitePath(site, inviteToken ? `i/${encodeURIComponent(inviteToken)}` : "rsvp")}`;
     case "gifts":
-      return `${base}/w/${encodedSlug}/gifts`;
+      return `${origin}${sitePath(site, "gifts")}`;
   }
 }
 
@@ -99,7 +100,7 @@ export function renderMessage({
       message.buttonLabel?.trim() || DEFAULT_BUTTON_LABELS[message.buttonTarget];
     button = {
       label: substituteTokens(rawLabel, tokens),
-      url: resolveButtonUrl(message.buttonTarget, wedding.slug, inviteToken, baseUrl),
+      url: resolveButtonUrl(message.buttonTarget, wedding, inviteToken, baseUrl),
     };
   }
 

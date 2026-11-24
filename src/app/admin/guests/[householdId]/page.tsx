@@ -11,10 +11,11 @@ import { appUrl } from "@/lib/email-layout";
 import { HOUSEHOLD_STATE_META } from "@/lib/guests/status";
 import { householdLabel, householdRsvpState, responsesMap } from "@/lib/rsvp/model";
 import { householdSlice, loadSnapshot } from "@/lib/snapshot";
+import { sitePath } from "@/lib/site-paths";
 
 export default async function HouseholdPage({ params }: PageProps<"/admin/guests/[householdId]">) {
   const { householdId } = await params;
-  const { wedding } = await requireHost();
+  const { wedding, siteBase } = await requireHost();
 
   const [householdRow] = await db
     .select()
@@ -49,7 +50,7 @@ export default async function HouseholdPage({ params }: PageProps<"/admin/guests
   const label = householdLabel(householdRow, slice.guests);
   const rsvpState = householdRsvpState(slice.guests, snapshot.events, responsesMap(slice.responses));
   const stateMeta = HOUSEHOLD_STATE_META[rsvpState];
-  const inviteUrl = `${appUrl()}/w/${wedding.slug}/i/${householdRow.inviteToken}`;
+  const inviteUrl = `${appUrl()}${sitePath(siteBase, `i/${householdRow.inviteToken}`)}`;
 
   const mainMembers = slice.guests
     .filter((g) => !g.isPlusOne)

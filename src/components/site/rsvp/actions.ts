@@ -14,6 +14,8 @@ import type { GuestFormState } from "@/lib/rsvp-guest/form-model";
 import { loadHouseholdRsvpData } from "@/lib/rsvp-guest/load";
 import { extractClientIp, lookupRateLimiter } from "@/lib/rsvp-guest/rate-limit";
 import { resolveSafeNext } from "@/lib/rsvp-guest/safe-next";
+import { sitePath } from "@/lib/site-paths";
+import { siteBaseOf } from "@/lib/site-root";
 import {
   collectRecipientEmails,
   formatConfirmationEmailBody,
@@ -84,9 +86,10 @@ export async function lookupInvitationAction(
   if (result.kind === "match") {
     await identifyHousehold(wedding.id, result.householdId);
     if (redirectTo) {
-      redirect(resolveSafeNext(wedding.slug, redirectTo, `/w/${wedding.slug}`));
+      const base = await siteBaseOf(wedding);
+      redirect(resolveSafeNext(base, redirectTo, sitePath(base)));
     }
-    revalidateWedding(wedding.slug);
+    revalidateWedding();
     return { kind: "matched" };
   }
 
@@ -145,9 +148,10 @@ export async function selectHouseholdAction(args: {
 
   await identifyHousehold(wedding.id, household.id);
   if (args.redirectTo) {
-    redirect(resolveSafeNext(wedding.slug, args.redirectTo, `/w/${wedding.slug}`));
+    const base = await siteBaseOf(wedding);
+    redirect(resolveSafeNext(base, args.redirectTo, sitePath(base)));
   }
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return { ok: true };
 }
 
@@ -157,9 +161,10 @@ export async function forgetHouseholdAction(args: {
   redirectTo?: string | null;
 }): Promise<void> {
   await forgetHousehold(args.weddingId);
-  revalidateWedding(args.slug);
+  revalidateWedding();
   if (args.redirectTo) {
-    redirect(resolveSafeNext(args.slug, args.redirectTo, `/w/${args.slug}/find`));
+    const base = await siteBaseOf({ id: args.weddingId, slug: args.slug });
+    redirect(resolveSafeNext(base, args.redirectTo, sitePath(base, "find")));
   }
 }
 
@@ -246,7 +251,7 @@ export async function submitRsvpAction(args: {
         wedding.rsvpAllowEdits && hhRow?.inviteToken
           ? {
               label: "View or change your RSVP",
-              url: `${appUrl()}/w/${wedding.slug}/i/${hhRow.inviteToken}`,
+              url: `${appUrl()}${sitePath(await siteBaseOf(wedding), `i/${hhRow.inviteToken}`)}`,
             }
           : null;
       const footer = formatConfirmationEmailFooter(wedding);
@@ -273,7 +278,7 @@ export async function submitRsvpAction(args: {
     // Don't let confirmation email setup fail the RSVP.
   }
 
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return {
     ok: true,
     firstResponse: result.firstResponse,

@@ -162,7 +162,7 @@ export async function createHouseholdAction(_prev: ActionState, formData: FormDa
   });
 
   revalidatePath("/admin/guests");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   redirect(`/admin/guests/${householdId}`);
 }
 
@@ -289,7 +289,7 @@ export async function updateHouseholdAction(
 
   revalidatePath("/admin/guests");
   revalidatePath(`/admin/guests/${householdId}`);
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok("Household saved.");
 }
 
@@ -303,7 +303,7 @@ export async function deleteHouseholdAction(formData: FormData): Promise<void> {
     .where(and(eq(schema.households.id, householdId), eq(schema.households.weddingId, wedding.id)));
 
   revalidatePath("/admin/guests");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   redirect("/admin/guests");
 }
 
@@ -326,7 +326,7 @@ export async function removePlusOneAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin/guests");
   revalidatePath(`/admin/guests/${householdId}`);
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
 }
 
 export async function resetInviteLinkAction(formData: FormData): Promise<void> {
@@ -340,7 +340,7 @@ export async function resetInviteLinkAction(formData: FormData): Promise<void> {
     .where(and(eq(schema.households.id, householdId), eq(schema.households.weddingId, wedding.id)));
 
   revalidatePath(`/admin/guests/${householdId}`);
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
 }
 
 export async function saveHostRsvpAction(
@@ -390,7 +390,7 @@ export async function saveHostRsvpAction(
 
   revalidatePath("/admin/guests");
   revalidatePath(`/admin/guests/${householdId}`);
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok("RSVP saved.");
 }
 
@@ -416,6 +416,6 @@ export async function createTagInlineAction(
   await db.insert(schema.tags).values({ id, weddingId: wedding.id, name });
   revalidatePath("/admin/guests/tags");
   revalidatePath("/admin/guests");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return { ok: true, tag: { id, name }, existed: false };
 }

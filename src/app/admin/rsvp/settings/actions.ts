@@ -37,6 +37,6 @@ export async function saveRsvpSettings(
 
   revalidatePath("/admin/rsvp");
   revalidatePath("/admin/rsvp/settings");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok("RSVP settings saved.");
 }

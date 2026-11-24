@@ -18,6 +18,7 @@ import {
 import { db, schema } from "@/db";
 import { requireHost } from "@/lib/auth";
 import { addablePageTypes, PAGE_TYPE_META, pageUrl, VISIBILITY_META } from "@/lib/pages";
+import { sitePath } from "@/lib/site-paths";
 
 const WEBSITE_SUBNAV = [
   { href: "/admin/website", label: "Pages" },
@@ -25,7 +26,7 @@ const WEBSITE_SUBNAV = [
 ];
 
 export default async function WebsitePagesPage() {
-  const { wedding } = await requireHost();
+  const { wedding, siteBase } = await requireHost();
 
   const pages = await db
     .select()
@@ -44,7 +45,7 @@ export default async function WebsitePagesPage() {
         description="Choose which pages appear on your wedding website, their order, and who can see them."
         actions={
           <a
-            href={`/w/${wedding.slug}`}
+            href={sitePath(siteBase)}
             target="_blank"
             rel="noreferrer"
             className={buttonClass("secondary", "sm")}
@@ -82,7 +83,7 @@ export default async function WebsitePagesPage() {
             {pages.map((page, i) => {
               const meta = PAGE_TYPE_META[page.type];
               const vis = VISIBILITY_META[page.visibility];
-              const href = pageUrl(wedding.slug, page.slug);
+              const href = pageUrl(siteBase, page.slug);
               return (
                 <li
                   key={page.id}

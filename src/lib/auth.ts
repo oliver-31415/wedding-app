@@ -7,6 +7,7 @@ import { cache } from "react";
 import { db, schema } from "@/db";
 import { emailEnabled } from "@/lib/email";
 import { hashToken, newToken } from "@/lib/ids";
+import { siteBaseOf } from "@/lib/site-root";
 
 const SESSION_COOKIE = "wa_session";
 const SESSION_DAYS = 30;
@@ -79,7 +80,13 @@ export async function endAllSessions(userId: string): Promise<void> {
 }
 
 export type Wedding = typeof schema.weddings.$inferSelect;
-export type HostContext = { user: CurrentUser; wedding: Wedding; role: "owner" | "cohost" };
+export type HostContext = {
+  user: CurrentUser;
+  wedding: Wedding;
+  role: "owner" | "cohost";
+  /** Where the guest site lives: "" at the root, else /w/{slug} (src/lib/site-paths.ts). */
+  siteBase: string;
+};
 
 /** The signed-in host's wedding, or null if they haven't created one yet. */
 export const getHostContext = cache(async (): Promise<HostContext | null> => {
@@ -91,7 +98,7 @@ export const getHostContext = cache(async (): Promise<HostContext | null> => {
     .innerJoin(schema.weddings, eq(schema.weddings.id, schema.weddingMembers.weddingId))
     .where(eq(schema.weddingMembers.userId, user.id))
     .limit(1);
-  return row ? { user, wedding: row.wedding, role: row.role } : null;
+  return row ? { user, wedding: row.wedding, role: row.role, siteBase: await siteBaseOf(row.wedding) } : null;
 });
 
 /**

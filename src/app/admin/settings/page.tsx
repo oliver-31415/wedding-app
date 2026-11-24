@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function GeneralSettingsPage() {
-  const { wedding, role } = await requireHost();
+  const { wedding, role, siteBase } = await requireHost();
 
   return (
     <div>
@@ -21,6 +21,7 @@ export default async function GeneralSettingsPage() {
         <WebAddressCard
           slug={wedding.slug}
           siteBaseUrl={appUrl()}
+          atRoot={siteBase === ""}
           isOwner={role === "owner"}
           action={updateSlugAction}
         />

@@ -17,6 +17,6 @@ export async function saveDesignAction(_prev: ActionState, formData: FormData): 
   if (Object.keys(errors).length) return fail("Please fix the highlighted fields.", errors);
 
   await db.update(schema.weddings).set({ theme: style!, accentColor: accent! }).where(eq(schema.weddings.id, wedding.id));
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok("Design saved — your website now uses it.");
 }

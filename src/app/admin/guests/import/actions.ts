@@ -136,7 +136,7 @@ export async function confirmImportAction(_prev: ImportActionState, formData: Fo
 
   revalidatePath("/admin/guests");
   revalidatePath("/admin/guests/tags");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
 
   return {
     ok: true,

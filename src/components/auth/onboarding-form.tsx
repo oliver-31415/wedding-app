@@ -8,9 +8,12 @@ import { suggestWeddingSlug } from "./validation";
 export function OnboardingForm({
   action,
   siteBaseUrl,
+  atRoot,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   siteBaseUrl: string;
+  /** The new wedding will be shown at the root of this server's domain. */
+  atRoot: boolean;
 }) {
   const [state, formAction] = useActionState(action, null);
   const [partnerOne, setPartnerOne] = useState("");
@@ -89,6 +92,15 @@ export function OnboardingForm({
         />
       </Field>
 
+      {atRoot && !state?.errors?.slug ? (
+        <div className="space-y-1">
+          <input type="hidden" name="slug" value={slug} />
+          <p className="text-sm font-medium text-ink">Web address</p>
+          <p className="break-all text-sm text-ink-muted">
+            Your site will live at <span className="font-medium text-ink">{siteBaseUrl}</span>
+          </p>
+        </div>
+      ) : (
       <Field
         label="Web address"
         htmlFor="slug"
@@ -123,6 +135,7 @@ export function OnboardingForm({
           />
         </div>
       </Field>
+      )}
 
       <SubmitButton className="w-full" pendingLabel="Creating your wedding…">
         Create wedding

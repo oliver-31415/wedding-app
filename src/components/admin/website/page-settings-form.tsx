@@ -28,11 +28,11 @@ type PageData = {
 
 export function PageSettingsForm({
   page,
-  weddingSlug,
+  siteBase,
   tags,
 }: {
   page: PageData;
-  weddingSlug: string;
+  siteBase: string;
   tags: { id: string; name: string }[];
 }) {
   const [state, action] = useActionState(savePageAction, null);
@@ -78,11 +78,11 @@ export function PageSettingsForm({
         <Field
           label="URL slug"
           htmlFor="page-slug"
-          hint={`Your page address will be /w/${weddingSlug}/${slug || page.slug}`}
+          hint={`Your page address will be ${siteBase}/${slug || page.slug}`}
           error={state?.errors?.slug}
         >
           <div className="flex items-center rounded-lg border border-line-strong bg-surface focus-within:border-brand">
-            <span className="pl-3 text-sm text-ink-muted select-none">/w/{weddingSlug}/</span>
+            <span className="pl-3 text-sm text-ink-muted select-none">{siteBase}/</span>
             <input
               id="page-slug"
               name="slug"
@@ -98,7 +98,7 @@ export function PageSettingsForm({
           <p className="text-sm font-medium text-ink">Page address</p>
           <p className="text-sm text-ink-muted">
             <code className="rounded bg-sunken px-1.5 py-0.5 text-xs text-ink">
-              {pageUrl(weddingSlug, page.slug)}
+              {pageUrl(siteBase, page.slug)}
             </code>{" "}
             (fixed for this page type)
           </p>

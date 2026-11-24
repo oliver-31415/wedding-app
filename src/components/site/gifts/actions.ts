@@ -1,7 +1,6 @@
 "use server";
 
 import { and, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { extractClientIp, guestActionLimiter } from "@/lib/rsvp-guest/rate-limit";
 import { db, schema } from "@/db";
@@ -10,15 +9,7 @@ import { verifyGuestGiftsAccess } from "@/lib/gift-admin/data";
 import { validateGuestClaimInput, validateGuestPledgeInput } from "@/lib/gift-admin/helpers";
 import { itemProgress } from "@/lib/gifts";
 import { newId } from "@/lib/ids";
-
-function revalidateAfterGuestGift(slug: string, pageSlug: string) {
-  revalidatePath(`/w/${slug}`, "layout");
-  revalidatePath(`/w/${slug}/${pageSlug}`);
-  revalidatePath("/admin");
-  revalidatePath("/admin/gifts");
-  revalidatePath("/admin/gifts/funds");
-  revalidatePath("/admin/gifts/received");
-}
+import { revalidateWedding } from "@/lib/revalidate";
 
 export async function claimGiftAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const slug = text(formData, "slug");
@@ -31,7 +22,7 @@ export async function claimGiftAction(_prev: ActionState, formData: FormData): P
   if (!access.ok) {
     return fail(access.error);
   }
-  const { wedding, page } = access;
+  const { wedding } = access;
   if (!guestActionLimiter.check(`gift:${wedding.id}:${extractClientIp(await headers())}`).allowed) {
     return fail("Too many in a short time — please wait a minute and try again.");
   }
@@ -93,7 +84,7 @@ export async function claimGiftAction(_prev: ActionState, formData: FormData): P
   }, { behavior: "immediate" }); // two guests claiming the last one can't both succeed
 
   if (txResult?.ok) {
-    revalidateAfterGuestGift(wedding.slug, page.slug);
+    revalidateWedding();
   }
   return txResult;
 }
@@ -109,7 +100,7 @@ export async function pledgeFundAction(_prev: ActionState, formData: FormData): 
   if (!access.ok) {
     return fail(access.error);
   }
-  const { wedding, page } = access;
+  const { wedding } = access;
   if (!guestActionLimiter.check(`gift:${wedding.id}:${extractClientIp(await headers())}`).allowed) {
     return fail("Too many in a short time — please wait a minute and try again.");
   }
@@ -150,7 +141,7 @@ export async function pledgeFundAction(_prev: ActionState, formData: FormData): 
     received: false,
   });
 
-  revalidateAfterGuestGift(wedding.slug, page.slug);
+  revalidateWedding();
 
   const hasDetails = Boolean(fund.paymentInstructions || fund.paymentUrl);
   const reminder = hasDetails

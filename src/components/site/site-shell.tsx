@@ -8,10 +8,12 @@ import {
   resolveSiteStyle,
   type ResolvedSiteStyle,
 } from "@/lib/site-styles";
+import { sitePath } from "@/lib/site-paths";
 import { SiteNav, type SiteNavItem } from "./site-nav";
 
 export type SiteShellProps = {
-  slug: string;
+  /** "" when the site is served at the root, else /w/{slug} (src/lib/site-paths.ts). */
+  siteBase: string;
   partnerOne: string;
   partnerTwo: string;
   subtitle: string;
@@ -135,7 +137,7 @@ function UnpublishedScreen({
 }
 
 export function SiteShellView({
-  slug,
+  siteBase,
   partnerOne,
   partnerTwo,
   subtitle,
@@ -161,7 +163,7 @@ export function SiteShellView({
 
   const { style } = resolved;
   const vars = buildSiteStyleVars(resolved);
-  const homeHref = previewQuery ? `/w/${slug}?${previewQuery}` : `/w/${slug}`;
+  const homeHref = previewQuery ? `${sitePath(siteBase)}?${previewQuery}` : sitePath(siteBase);
   const showBanner = isHost && !published && !resolved.isEmbeddedPreview;
 
   const wrapperProps = {
@@ -358,7 +360,7 @@ export function SiteShell(props: SiteShellProps) {
 
   return (
     <SiteShellView
-      slug={props.slug}
+      siteBase={props.siteBase}
       partnerOne={props.partnerOne}
       partnerTwo={props.partnerTwo}
       subtitle={props.subtitle}

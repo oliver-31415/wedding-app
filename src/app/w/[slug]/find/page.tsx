@@ -1,15 +1,15 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { Card, CardBody } from "@/components/ui";
 import { InvitationLookup } from "@/components/site/rsvp/invitation-lookup";
 import { NotYouButton } from "@/components/site/rsvp/not-you-button";
-import { db, schema } from "@/db";
+import { getWeddingBySlug } from "@/components/site/site-data";
 import { householdLabel } from "@/lib/rsvp/model";
 import { loadHouseholdRsvpData } from "@/lib/rsvp-guest/load";
 import { resolveSafeNext } from "@/lib/rsvp-guest/safe-next";
 import { getViewer } from "@/lib/site-access";
+import { sitePath } from "@/lib/site-paths";
 
 export default async function FindInvitationPage({
   params,
@@ -18,11 +18,7 @@ export default async function FindInvitationPage({
   const { slug } = await params;
   const sp = await searchParams;
 
-  const [wedding] = await db
-    .select()
-    .from(schema.weddings)
-    .where(eq(schema.weddings.slug, slug));
-
+  const wedding = await getWeddingBySlug(slug);
   if (!wedding) notFound();
 
   const viewer = await getViewer(wedding);
@@ -49,7 +45,7 @@ export default async function FindInvitationPage({
   }
 
   const rawNext = typeof sp.next === "string" ? sp.next : null;
-  const safeNext = resolveSafeNext(wedding.slug, rawNext, `/w/${wedding.slug}`);
+  const safeNext = resolveSafeNext(wedding.siteBase, rawNext, sitePath(wedding.siteBase));
 
   const loaded = viewer.householdId
     ? await loadHouseholdRsvpData(wedding.id, viewer.householdId)

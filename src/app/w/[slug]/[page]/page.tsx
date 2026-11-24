@@ -8,7 +8,9 @@ import {
 } from "@/components/site/site-data";
 import { pageStyle } from "@/components/site/page-style";
 import { SitePageView } from "@/components/site/site-page-view";
+import { pageUrl } from "@/lib/pages";
 import { canViewPage, getViewer } from "@/lib/site-access";
+import { sitePath } from "@/lib/site-paths";
 
 export async function generateMetadata({
   params,
@@ -57,11 +59,11 @@ export default async function WeddingSubPage({
       notFound();
     case "needs_password":
       redirect(
-        `/w/${wedding.slug}/unlock?next=${encodeURIComponent(`/w/${wedding.slug}/${page.slug}`)}`,
+        `${sitePath(wedding.siteBase, "unlock")}?next=${encodeURIComponent(pageUrl(wedding.siteBase, page.slug))}`,
       );
     case "needs_guest":
       return (
-        <NeedsGuestCard weddingSlug={wedding.slug} nextPath={`/w/${wedding.slug}/${page.slug}`} />
+        <NeedsGuestCard siteBase={wedding.siteBase} nextPath={pageUrl(wedding.siteBase, page.slug)} />
       );
     case "ok":
       return (

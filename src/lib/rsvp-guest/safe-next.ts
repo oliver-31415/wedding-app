@@ -1,9 +1,12 @@
+import { isWithinSite } from "@/lib/site-paths";
+
 /**
  * Validates `?next=` redirect targets so guests can only be redirected to a
- * safe path within the same wedding site (`/w/{slug}`).
+ * safe path within the same wedding site (its base from src/lib/site-paths.ts:
+ * `/w/{slug}`, or the whole domain when the wedding is served at the root).
  */
 export function resolveSafeNext(
-  slug: string,
+  base: string,
   rawNext: string | null | undefined,
   fallback: string,
 ): string {
@@ -16,12 +19,9 @@ export function resolveSafeNext(
     return fallback;
   }
 
-  const base = `/w/${slug}`;
-  if (trimmed !== base && !trimmed.startsWith(`${base}/`) && !trimmed.startsWith(`${base}?`) && !trimmed.startsWith(`${base}#`)) {
-    return fallback;
-  }
+  if (!isWithinSite(base, trimmed)) return fallback;
 
-  // Verify the path part does not traverse outside `/w/{slug}`.
+  // Verify the path part does not traverse outside the site.
   const pathOnly = trimmed.split(/[?#]/, 1)[0] ?? "";
   const segments = pathOnly.split("/");
   if (segments.some((seg) => seg === ".." || seg === ".")) {

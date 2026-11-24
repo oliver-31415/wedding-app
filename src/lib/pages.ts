@@ -1,13 +1,15 @@
 import { PAGE_TYPES, type PageType } from "@/db/schema";
 import { wallTimeToInstant } from "@/lib/dates";
 import { slugify } from "@/lib/forms";
+import { resolveSafeNext } from "@/lib/rsvp-guest/safe-next";
+import { sitePath } from "@/lib/site-paths";
 
 export type PageTypeMeta = {
   type: PageType;
   label: string;
   defaultTitle: string;
   description: string;
-  /** Fixed URL slug under /w/{wedding}/, or null for custom pages. */
+  /** Fixed URL slug under the guest site, or null for custom pages. */
   fixedSlug: string | null;
   /** Non-custom types can be added at most once per wedding. */
   singleton: boolean;
@@ -102,6 +104,20 @@ export const RESERVED_SLUGS = new Set<string>([
   "find",
   "i",
   "event",
+  // App routes: a wedding served at the root shares the domain with these.
+  "admin",
+  "api",
+  "login",
+  "logout",
+  "signup",
+  "onboarding",
+  "invite",
+  "verify-email",
+  "forgot-password",
+  "reset-password",
+  "site-admin",
+  "uploads",
+  "w",
 ]);
 
 export function isPageType(value: string): value is PageType {
@@ -153,9 +169,9 @@ export function uniqueCustomSlug(title: string, existingSlugs: Iterable<string>)
   return `${base}-${n}`;
 }
 
-/** Public path for a page under /w/{weddingSlug}. Home links to /w/{weddingSlug}. */
-export function pageUrl(weddingSlug: string, pageSlug: string): string {
-  return pageSlug === "" ? `/w/${weddingSlug}` : `/w/${weddingSlug}/${pageSlug}`;
+/** Public path for a page on the guest site whose base is `siteBase` (see src/lib/site-paths.ts). */
+export function pageUrl(siteBase: string, pageSlug: string): string {
+  return sitePath(siteBase, pageSlug);
 }
 
 /** Labels, tones and hints for page visibility — the shared vocabulary. */
@@ -190,7 +206,7 @@ export type HomeLanding<T> =
   | { kind: "empty" };
 
 /**
- * Decides what `/w/[slug]` renders or redirects to.
+ * Decides what the guest site's home address renders or redirects to.
  * Renders the home page if it exists and is viewable; otherwise redirects to
  * the first viewable page; if no pages can be shown, returns "empty" so only
  * the couple's names (and date/location if set) appear.
@@ -234,18 +250,9 @@ export function resolveHomeLanding<T extends { type: PageType; slug: string; pos
   return { kind: "empty" };
 }
 
-/**
- * Only allow redirects back to the same wedding site (`/w/{slug}` or below).
- */
-export function safeNextPath(next: string | null | undefined, weddingSlug: string): string {
-  const fallback = `/w/${weddingSlug}`;
-  if (!next) return fallback;
-  const trimmed = next.trim();
-  if (!trimmed.startsWith(fallback)) return fallback;
-  if (trimmed.includes("\\") || trimmed.includes("..") || /[\r\n]/.test(trimmed)) return fallback;
-  const charAfter = trimmed.charAt(fallback.length);
-  if (charAfter !== "" && charAfter !== "/" && charAfter !== "?") return fallback;
-  return trimmed;
+/** Only allow redirects back to the same wedding site; anything else goes to its home. */
+export function safeNextPath(next: string | null | undefined, siteBase: string): string {
+  return resolveSafeNext(siteBase, next, sitePath(siteBase));
 }
 
 // Design styles and accent colour utilities live in src/lib/site-styles.ts.

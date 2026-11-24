@@ -1,13 +1,13 @@
 "use server";
 
 import { and, asc, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { PAGE_VISIBILITY, type PageType, type PageVisibility } from "@/db/schema";
 import { requireHost } from "@/lib/auth";
 import { type ActionState, fail, moveId, ok, readAudience, text } from "@/lib/forms";
 import { newId } from "@/lib/ids";
+import { revalidateWedding } from "@/lib/revalidate";
 import {
   canAddPageType,
   isPageType,
@@ -15,13 +15,6 @@ import {
   uniqueCustomSlug,
   validateCustomSlug,
 } from "@/lib/pages";
-
-function revalidateWebsite(weddingSlug: string, pageId?: string) {
-  revalidatePath("/admin/website");
-  revalidatePath("/admin/settings/design");
-  if (pageId) revalidatePath(`/admin/website/${pageId}`);
-  revalidatePath(`/w/${weddingSlug}`, "layout");
-}
 
 export async function addBuiltInPageAction(formData: FormData): Promise<void> {
   const { wedding } = await requireHost();
@@ -53,7 +46,7 @@ export async function addBuiltInPageAction(formData: FormData): Promise<void> {
     position: existing.length,
   });
 
-  revalidateWebsite(wedding.slug, id);
+  revalidateWedding();
   redirect(`/admin/website/${id}`);
 }
 
@@ -83,7 +76,7 @@ export async function addCustomPageAction(_prev: ActionState, formData: FormData
     position: existing.length,
   });
 
-  revalidateWebsite(wedding.slug, id);
+  revalidateWedding();
   redirect(`/admin/website/${id}`);
 }
 
@@ -112,7 +105,7 @@ export async function reorderPageAction(formData: FormData): Promise<void> {
         .where(and(eq(schema.pages.id, pid), eq(schema.pages.weddingId, wedding.id))),
     ),
   );
-  revalidateWebsite(wedding.slug);
+  revalidateWedding();
 }
 
 export async function deletePageAction(formData: FormData): Promise<void> {
@@ -138,7 +131,7 @@ export async function deletePageAction(formData: FormData): Promise<void> {
     ),
   );
 
-  revalidateWebsite(wedding.slug);
+  revalidateWedding();
   if (redirectTo === "list") redirect("/admin/website");
 }
 
@@ -210,7 +203,7 @@ export async function savePageAction(_prev: ActionState, formData: FormData): Pr
     })
     .where(and(eq(schema.pages.id, page.id), eq(schema.pages.weddingId, wedding.id)));
 
-  revalidateWebsite(wedding.slug, page.id);
+  revalidateWedding();
   return ok("Page saved.");
 }
 
@@ -262,7 +255,7 @@ export async function addPageItemAction(_prev: ActionState, formData: FormData):
     position: existing.length,
   });
 
-  revalidateWebsite(wedding.slug, page.id);
+  revalidateWedding();
   return ok("Entry added.");
 }
 
@@ -298,7 +291,7 @@ export async function updatePageItemAction(_prev: ActionState, formData: FormDat
       ),
     );
 
-  revalidateWebsite(wedding.slug, page.id);
+  revalidateWedding();
   return ok("Entry saved.");
 }
 
@@ -333,7 +326,7 @@ export async function deletePageItemAction(formData: FormData): Promise<void> {
     ),
   );
 
-  revalidateWebsite(wedding.slug, pageId);
+  revalidateWedding();
 }
 
 export async function reorderPageItemAction(formData: FormData): Promise<void> {
@@ -369,5 +362,5 @@ export async function reorderPageItemAction(formData: FormData): Promise<void> {
     ),
   );
 
-  revalidateWebsite(wedding.slug, pageId);
+  revalidateWedding();
 }

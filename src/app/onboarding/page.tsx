@@ -6,6 +6,7 @@ import { getHostContext, requireVerifiedUser } from "@/lib/auth";
 import { isSuperuser } from "@/lib/superusers";
 import { appUrl } from "@/lib/email-layout";
 import { createWeddingAction } from "./actions";
+import { getRootWeddingId, servesOneWedding } from "@/lib/site-root";
 
 export const metadata: Metadata = {
   title: "Set up your wedding",
@@ -41,7 +42,11 @@ export default async function OnboardingPage() {
         </div>
       }
     >
-      <OnboardingForm action={createWeddingAction} siteBaseUrl={appUrl()} />
+      <OnboardingForm
+        action={createWeddingAction}
+        siteBaseUrl={appUrl()}
+        atRoot={servesOneWedding() && (await getRootWeddingId()) === null}
+      />
     </AuthShell>
   );
 }

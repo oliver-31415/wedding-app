@@ -3,14 +3,25 @@ import { and, asc, eq } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema } from "@/db";
 import type { SnapGuest } from "@/lib/rsvp/model";
+import { ROOT_SITE_SLUG, slugBase } from "@/lib/site-paths";
+import { getRootWeddingId } from "@/lib/site-root";
 
+/**
+ * The wedding for a /w/[slug] route, plus `siteBase` for building its links.
+ * ROOT_SITE_SLUG ("_") is the wedding served at the root of the domain.
+ */
 export const getWeddingBySlug = cache(async (slug: string) => {
-  const [wedding] = await db
-    .select()
-    .from(schema.weddings)
-    .where(eq(schema.weddings.slug, slug))
-    .limit(1);
-  return wedding ?? null;
+  const rootId = await getRootWeddingId();
+  const where =
+    slug === ROOT_SITE_SLUG
+      ? rootId
+        ? eq(schema.weddings.id, rootId)
+        : null
+      : eq(schema.weddings.slug, slug);
+  if (!where) return null;
+  const [wedding] = await db.select().from(schema.weddings).where(where).limit(1);
+  if (!wedding) return null;
+  return { ...wedding, siteBase: wedding.id === rootId ? "" : slugBase(wedding.slug) };
 });
 
 export const getWeddingPages = cache(async (weddingId: string) => {

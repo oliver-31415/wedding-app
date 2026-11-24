@@ -14,21 +14,13 @@ import {
   validateOfflineGiftInput,
 } from "@/lib/gift-admin/helpers";
 import { newId } from "@/lib/ids";
+import { revalidateWedding } from "@/lib/revalidate";
 import {
   deleteUpload,
   importImageFromProductPage,
   importImageFromUrl,
   saveUploadedImage,
 } from "@/lib/uploads";
-
-function revalidateGiftPaths(slug: string) {
-  revalidatePath("/admin");
-  revalidatePath("/admin/gifts");
-  revalidatePath("/admin/gifts/funds");
-  revalidatePath("/admin/gifts/received");
-  revalidatePath(`/w/${slug}`, "layout");
-  revalidatePath(`/w/${slug}/gifts`);
-}
 
 // ---------------------------------------------------------------- gift items
 
@@ -149,7 +141,7 @@ export async function saveGiftItemAction(_prev: ActionState, formData: FormData)
       await deleteUpload(existing.imageUrl);
     }
 
-    revalidateGiftPaths(wedding.slug);
+    revalidateWedding();
     revalidatePath(`/admin/gifts/${id}`);
     return ok("Gift saved.");
   }
@@ -180,7 +172,7 @@ export async function saveGiftItemAction(_prev: ActionState, formData: FormData)
     throw err;
   }
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
   redirect(autoImportFailed ? `/admin/gifts/${newItemId}?pictureNotice=shop_failed` : "/admin/gifts");
 }
 
@@ -211,7 +203,7 @@ export async function reorderGiftItemsAction(formData: FormData): Promise<void> 
     }
   });
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 export async function deleteGiftItemAction(formData: FormData): Promise<void> {
@@ -237,7 +229,7 @@ export async function deleteGiftItemAction(formData: FormData): Promise<void> {
 
   await deleteUpload(existing.imageUrl);
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 // ---------------------------------------------------------------- cash funds
@@ -280,7 +272,7 @@ export async function saveCashFundAction(_prev: ActionState, formData: FormData)
       })
       .where(and(eq(schema.cashFunds.id, id), eq(schema.cashFunds.weddingId, wedding.id)));
 
-    revalidateGiftPaths(wedding.slug);
+    revalidateWedding();
     revalidatePath(`/admin/gifts/funds/${id}`);
     return ok("Cash fund saved.");
   }
@@ -302,7 +294,7 @@ export async function saveCashFundAction(_prev: ActionState, formData: FormData)
     position: existing.length,
   });
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
   redirect("/admin/gifts/funds");
 }
 
@@ -333,7 +325,7 @@ export async function reorderCashFundsAction(formData: FormData): Promise<void> 
     }
   });
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 export async function deleteCashFundAction(formData: FormData): Promise<void> {
@@ -350,7 +342,7 @@ export async function deleteCashFundAction(formData: FormData): Promise<void> {
       .where(and(eq(schema.cashFunds.id, id), eq(schema.cashFunds.weddingId, wedding.id)));
   });
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 // ---------------------------------------------------------------- claims & contributions
@@ -372,7 +364,7 @@ export async function toggleContributionReceivedAction(formData: FormData): Prom
     .set({ received: !row.received })
     .where(and(eq(schema.fundContributions.id, id), eq(schema.fundContributions.weddingId, wedding.id)));
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 export async function toggleContributionThankedAction(formData: FormData): Promise<void> {
@@ -392,7 +384,7 @@ export async function toggleContributionThankedAction(formData: FormData): Promi
     .set({ thankedAt: row.thankedAt ? null : new Date() })
     .where(and(eq(schema.fundContributions.id, id), eq(schema.fundContributions.weddingId, wedding.id)));
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 export async function deleteContributionAction(formData: FormData): Promise<void> {
@@ -404,7 +396,7 @@ export async function deleteContributionAction(formData: FormData): Promise<void
     .delete(schema.fundContributions)
     .where(and(eq(schema.fundContributions.id, id), eq(schema.fundContributions.weddingId, wedding.id)));
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 export async function toggleClaimThankedAction(formData: FormData): Promise<void> {
@@ -424,7 +416,7 @@ export async function toggleClaimThankedAction(formData: FormData): Promise<void
     .set({ thankedAt: row.thankedAt ? null : new Date() })
     .where(and(eq(schema.giftClaims.id, id), eq(schema.giftClaims.weddingId, wedding.id)));
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 export async function deleteClaimAction(formData: FormData): Promise<void> {
@@ -436,7 +428,7 @@ export async function deleteClaimAction(formData: FormData): Promise<void> {
     .delete(schema.giftClaims)
     .where(and(eq(schema.giftClaims.id, id), eq(schema.giftClaims.weddingId, wedding.id)));
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
 }
 
 export async function recordOfflineGiftAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -492,6 +484,6 @@ export async function recordOfflineGiftAction(_prev: ActionState, formData: Form
     });
   }
 
-  revalidateGiftPaths(wedding.slug);
+  revalidateWedding();
   return ok("Gift recorded.");
 }

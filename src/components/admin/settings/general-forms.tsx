@@ -147,17 +147,20 @@ export function GeneralDetailsForm({
 export function WebAddressCard({
   slug,
   siteBaseUrl,
+  atRoot,
   isOwner,
   action,
 }: {
   slug: string;
   siteBaseUrl: string;
+  /** This server shows the wedding at the root of its domain, so there's no slug to change. */
+  atRoot: boolean;
   isOwner: boolean;
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const [state, formAction] = useActionState(action, null);
   const [value, setValue] = useState(slug);
-  const currentUrl = `${siteBaseUrl}/w/${slug}`;
+  const currentUrl = atRoot ? siteBaseUrl : `${siteBaseUrl}/w/${slug}`;
 
   return (
     <Card>
@@ -171,7 +174,7 @@ export function WebAddressCard({
           <CopyButton text={currentUrl} label="Copy link" />
         </div>
 
-        {isOwner ? (
+        {atRoot ? null : isOwner ? (
           <form action={formAction} className="space-y-4" noValidate>
             <FormMessage state={state} />
             <Notice tone="warn">

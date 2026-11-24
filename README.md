@@ -15,7 +15,7 @@ Needs Node 22 and pnpm (`corepack enable`).
 ```sh
 pnpm install
 pnpm db:migrate        # creates data/wedding.db
-pnpm db:seed           # demo wedding: demo@example.com / wedding-demo, site /w/alex-and-sam
+pnpm db:seed           # demo wedding: demo@example.com / wedding-demo, site at / (and /w/alex-and-sam)
 pnpm dev               # http://localhost:3000
 ```
 

@@ -27,7 +27,7 @@ cleverness: every screen should look and behave like the others.
 
 ```
 pnpm db:migrate     # apply migrations to data/wedding.db
-pnpm db:seed        # demo wedding: demo@example.com / wedding-demo, site /w/alex-and-sam, site password "bowral"
+pnpm db:seed        # demo wedding: demo@example.com / wedding-demo, site at / (and /w/alex-and-sam), site password "bowral"
 pnpm test           # vitest (pure logic in src/lib)
 pnpm typecheck
 pnpm lint
@@ -163,7 +163,16 @@ counts, `Progress` for response rate and fund goals.
 
 ## Routes and ownership
 
-Public guest site (`/w/[slug]/…`):
+Public guest site (`/w/[slug]/…`). On a server without `SUPERUSER_EMAILS`
+the (first) wedding is also served at the root of the domain: rewrites in
+`next.config.ts` send `/`, `/rsvp`, `/i/…` etc. to `/w/_/…`, and
+`getWeddingBySlug("_")` loads that wedding. So never write `/w/${slug}` in a
+link — build it from the wedding's `siteBase` ("" at the root, else
+`/w/{slug}`) with `sitePath()` / `pageUrl()` from `src/lib/site-paths.ts` /
+`src/lib/pages.ts`. Site pages get it as `wedding.siteBase`, admin code from
+`requireHost()`, anything else from `siteBaseOf(wedding)`
+(`src/lib/site-root.ts`). New top-level app routes must be added to
+`RESERVED_SLUGS` so a custom page can't be hidden behind them.
 
 | Route | Owner |
 |---|---|
@@ -207,7 +216,7 @@ Shared site components go in `src/components/site/`, admin ones in
   and `appUrl()`. Every email goes through it, then `sendEmail()`.
 - `scripts/dev-session.mts` — prints a session token for headless testing:
   `T=$(pnpm -s tsx scripts/dev-session.mts)`, then cookie `wa_session=$T`.
-- Personal invite links are `${appUrl()}/w/${wedding.slug}/i/${household.inviteToken}`.
+- Personal invite links are `${appUrl()}${sitePath(siteBase, `i/${household.inviteToken}`)}`.
 
 ## Shared database while building
 
@@ -259,8 +268,8 @@ token classes (`text-ink`, `bg-surface`, `border-line`, `bg-accent`,
 couple's theme automatically.
 
 **Freshness.** Pages are rendered per request (Cache Components is off).
-After a write, `revalidatePath()` the admin screen you're on; for changes
-guests can see, also `revalidatePath(`/w/${wedding.slug}`, "layout")`.
+After a write, call `revalidateWedding()` (`src/lib/revalidate.ts`), which
+refreshes the admin and the guest site wherever it's served.
 
 **Email.** Pass `weddingId` to `sendEmail()`. In development (no
 SMTP_HOST) emails go to the outbox; in production the outbox is never

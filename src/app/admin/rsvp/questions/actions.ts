@@ -100,7 +100,7 @@ async function normaliseActivePositions(weddingId: string) {
 }
 
 function revalidateRsvp(slug: string, questionId?: string) {
-  revalidateWedding(slug);
+  revalidateWedding();
   revalidatePath("/admin/rsvp");
   revalidatePath("/admin/rsvp/questions");
   if (questionId) revalidatePath(`/admin/rsvp/questions/${questionId}`);

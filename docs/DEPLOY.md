@@ -102,9 +102,17 @@ to. Without SMTP, nothing needs confirming — but nobody can reset a
 password either, and guest emails can't be sent. Set it up before your
 brother creates his account.
 
+## One wedding at the root address
+
+A server without `SUPERUSER_EMAILS` hosts one wedding and shows it at the root
+of its domain: wedding.wright-guys.com, wedding.wright-guys.com/rsvp and so
+on. The couple's admin is at /admin and signing in at /login. Until the
+wedding has been created, the root address goes to the sign-in page.
+
 ## Hosting several weddings on one server (super users)
 
-wedding.wright-guys.com hosts one wedding, so it doesn't use this. If you run
+wedding.wright-guys.com hosts one wedding, so it doesn't use this. With super
+users set, each wedding lives at /w/its-name instead of the root. If you run
 another instance for several couples, put the people who run the server in
 `SUPERUSER_EMAILS`. They are site admins. They can always create an
 account, and they get **Site admin** in the sidebar (`/site-admin`), where

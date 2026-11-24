@@ -27,7 +27,7 @@ export async function createTagAction(_prev: ActionState, formData: FormData): P
   await db.insert(schema.tags).values({ id: newId(), weddingId: wedding.id, name });
   revalidatePath("/admin/guests/tags");
   revalidatePath("/admin/guests");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok(`Tag “${name}” created.`);
 }
 
@@ -59,7 +59,7 @@ export async function renameTagAction(_prev: ActionState, formData: FormData): P
 
   revalidatePath("/admin/guests/tags");
   revalidatePath("/admin/guests");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok("Tag renamed.");
 }
 
@@ -74,5 +74,5 @@ export async function deleteTagAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin/guests/tags");
   revalidatePath("/admin/guests");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
 }

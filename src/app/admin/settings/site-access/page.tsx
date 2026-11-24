@@ -12,13 +12,14 @@ import {
   saveSitePasswordAction,
   togglePublishAction,
 } from "./actions";
+import { sitePath } from "@/lib/site-paths";
 
 export const metadata: Metadata = {
   title: "Site access settings",
 };
 
 export default async function SiteAccessSettingsPage() {
-  const { wedding } = await requireHost();
+  const { wedding, siteBase } = await requireHost();
 
   const [weddingPages, weddingEvents] = await Promise.all([
     db
@@ -36,7 +37,7 @@ export default async function SiteAccessSettingsPage() {
     rsvpEventCount: weddingEvents.filter((e) => e.rsvpEnabled).length,
   });
 
-  const siteUrl = `${appUrl()}/w/${wedding.slug}`;
+  const siteUrl = `${appUrl()}${sitePath(siteBase)}`;
 
   return (
     <div>

@@ -8,12 +8,14 @@ import type { schema } from "@/db";
 import { describeAudience } from "@/lib/audience";
 import { formatDateLong, formatTimeRange } from "@/lib/dates";
 import { eventNeedsGuest, visibleEvents } from "@/lib/event-visibility";
-import { buildGoogleCalendarUrl, buildGoogleMapsUrl } from "@/lib/pages";
+import { buildGoogleCalendarUrl, buildGoogleMapsUrl, pageUrl } from "@/lib/pages";
 import type { SnapGuest } from "@/lib/rsvp/model";
 import type { Viewer } from "@/lib/site-access";
+import { sitePath } from "@/lib/site-paths";
 import type { SiteStyleSpec } from "@/lib/site-styles";
 
-type Wedding = typeof schema.weddings.$inferSelect;
+/** `siteBase`: where the guest site lives (src/lib/site-paths.ts). */
+type Wedding = typeof schema.weddings.$inferSelect & { siteBase: string };
 type Page = typeof schema.pages.$inferSelect;
 type Event = Awaited<ReturnType<typeof getWeddingEvents>>[number];
 type Item = Awaited<ReturnType<typeof getPageItems>>[number];
@@ -94,8 +96,8 @@ export async function SitePageView({
         )}
         {promptToIdentify && (
           <IdentifyPrompt
-            slug={wedding.slug}
-            next={`/w/${wedding.slug}/${page.slug}`}
+            siteBase={wedding.siteBase}
+            next={pageUrl(wedding.siteBase, page.slug)}
             style={style}
             text="Some details are only shown to invited guests."
           />
@@ -167,7 +169,7 @@ const eyebrow = "text-xs font-medium tracking-[0.2em] text-accent uppercase";
 
 function EventDetails({ event, wedding, compact = false }: { event: Event; wedding: Wedding; compact?: boolean }) {
   const gcalUrl = event.startsAt ? buildGoogleCalendarUrl(wedding, { ...event, startsAt: event.startsAt }) : null;
-  const icsUrl = event.startsAt ? `/w/${wedding.slug}/event/${event.id}.ics` : null;
+  const icsUrl = event.startsAt ? sitePath(wedding.siteBase, `event/${event.id}.ics`) : null;
   const mapsUrl = event.address ? buildGoogleMapsUrl(event.venueName, event.address) : null;
   return (
     <div className={cn("space-y-2 text-sm", compact ? "text-ink-muted" : "")}>
@@ -336,13 +338,13 @@ function Schedule({
   }
 }
 
-function IdentifyPrompt({ slug, next, style, text }: { slug: string; next: string; style: SiteStyleSpec; text: string }) {
+function IdentifyPrompt({ siteBase, next, style, text }: { siteBase: string; next: string; style: SiteStyleSpec; text: string }) {
   const t = typography(style);
   return (
     <div className={cn("mx-auto rounded-[var(--radius-card)] border border-dashed border-line-strong px-6 py-6 text-center", t.width)}>
       <p className="text-sm text-ink-muted">{text}</p>
       <Link
-        href={`/w/${slug}/find?next=${encodeURIComponent(next)}`}
+        href={`${sitePath(siteBase, "find")}?next=${encodeURIComponent(next)}`}
         className="mt-3 inline-flex h-10 items-center rounded-[var(--radius-control)] bg-accent px-5 text-sm font-medium text-accent-ink hover:opacity-90"
       >
         Find your invitation

@@ -108,7 +108,7 @@ export async function sendTestMessage(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { user, wedding } = await requireHost();
+  const { user, wedding, siteBase } = await requireHost();
   const messageId = text(formData, "messageId");
   if (!messageId) return fail("Message not found.");
 
@@ -178,7 +178,7 @@ export async function sendTestMessage(
   }
 
   const rendered = renderMessage({
-    wedding,
+    wedding: { ...wedding, siteBase },
     message: { subject, body, buttonTarget, buttonLabel },
     recipient: { firstName },
     inviteToken,
@@ -203,7 +203,7 @@ export async function sendMessage(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { wedding } = await requireHost();
+  const { wedding, siteBase } = await requireHost();
   const messageId = text(formData, "messageId");
   if (!messageId) return fail("Message not found.");
 
@@ -253,7 +253,7 @@ export async function sendMessage(
   for (const recipient of preview.recipients) {
     const inviteToken = inviteTokenByHousehold.get(recipient.householdId) ?? null;
     const rendered = renderMessage({
-      wedding,
+      wedding: { ...wedding, siteBase },
       message: {
         subject: parsed.data.subject,
         body: parsed.data.body,

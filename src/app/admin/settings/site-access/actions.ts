@@ -19,7 +19,7 @@ export async function togglePublishAction(_prev: ActionState, formData: FormData
   revalidatePath("/admin", "layout");
   revalidatePath("/admin");
   revalidatePath("/admin/settings/site-access");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok(published ? "Your wedding site is now published." : "Your wedding site is now a draft.");
 }
 
@@ -42,7 +42,7 @@ export async function saveSitePasswordAction(_prev: ActionState, formData: FormD
     .where(eq(schema.weddings.id, wedding.id));
 
   revalidatePath("/admin/settings/site-access");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok("Site password saved.");
 }
 
@@ -55,7 +55,7 @@ export async function removeSitePasswordAction(): Promise<void> {
     .where(eq(schema.weddings.id, wedding.id));
 
   revalidatePath("/admin/settings/site-access");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
 }
 
 export async function saveSearchVisibilityAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -68,7 +68,7 @@ export async function saveSearchVisibilityAction(_prev: ActionState, formData: F
     .where(eq(schema.weddings.id, wedding.id));
 
   revalidatePath("/admin/settings/site-access");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok(
     searchVisible
       ? "Search engines can now index your wedding site."

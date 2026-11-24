@@ -45,7 +45,7 @@ export async function updateGeneralAction(_prev: ActionState, formData: FormData
   revalidatePath("/admin", "layout");
   revalidatePath("/admin");
   revalidatePath("/admin/settings");
-  revalidateWedding(wedding.slug);
+  revalidateWedding();
   return ok("Wedding details saved.");
 }
 
@@ -95,6 +95,6 @@ export async function updateSlugAction(_prev: ActionState, formData: FormData): 
   revalidatePath("/admin");
   revalidatePath("/admin/settings");
   revalidatePath("/admin/settings/site-access");
-  revalidateWedding(slug!, wedding.slug);
+  revalidateWedding();
   return ok("Web address updated.");
 }

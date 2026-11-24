@@ -13,7 +13,7 @@ import { PAGE_TYPE_META, pageUrl, VISIBILITY_META } from "@/lib/pages";
 export default async function WebsitePageEditor({
   params,
 }: PageProps<"/admin/website/[pageId]">) {
-  const { wedding } = await requireHost();
+  const { wedding, siteBase } = await requireHost();
   const { pageId } = await params;
 
   const [page] = await db
@@ -26,7 +26,7 @@ export default async function WebsitePageEditor({
 
   const meta = PAGE_TYPE_META[page.type];
   const vis = VISIBILITY_META[page.visibility];
-  const previewHref = pageUrl(wedding.slug, page.slug);
+  const previewHref = pageUrl(siteBase, page.slug);
 
   const [tags, items, eventCount] = await Promise.all([
     db
@@ -127,7 +127,7 @@ export default async function WebsitePageEditor({
               visibility: page.visibility,
               audience: page.audience,
             }}
-            weddingSlug={wedding.slug}
+            siteBase={siteBase}
             tags={tags}
           />
         </CardBody>

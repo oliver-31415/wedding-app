@@ -2,13 +2,15 @@ import type { schema } from "@/db";
 import { Card, CardBody, TextBlock } from "@/components/ui";
 import { householdLabel, rsvpEventsForHousehold, rsvpWindow } from "@/lib/rsvp/model";
 import { loadHouseholdRsvpData } from "@/lib/rsvp-guest/load";
+import { pageUrl } from "@/lib/pages";
 import type { Viewer } from "@/lib/site-access";
+import { sitePath } from "@/lib/site-paths";
 import { InvitationLookup } from "./invitation-lookup";
 import { NotYouButton } from "./not-you-button";
 import { RsvpFlow } from "./rsvp-flow";
 import { RsvpSummary } from "./rsvp-summary";
 
-type Wedding = typeof schema.weddings.$inferSelect;
+type Wedding = typeof schema.weddings.$inferSelect & { siteBase: string };
 type Page = typeof schema.pages.$inferSelect;
 
 export async function RsvpPageBody({
@@ -33,7 +35,7 @@ export async function RsvpPageBody({
 
   const notYouRedirectTo =
     !viewer.unlocked && !viewer.isHost && page.visibility !== "public"
-      ? `/w/${wedding.slug}/find?next=${encodeURIComponent(`/w/${wedding.slug}/${page.slug}`)}`
+      ? `${sitePath(wedding.siteBase, "find")}?next=${encodeURIComponent(pageUrl(wedding.siteBase, page.slug))}`
       : null;
 
   // 1. RSVPs closed

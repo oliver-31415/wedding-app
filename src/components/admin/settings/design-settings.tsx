@@ -4,23 +4,24 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Button, Card, CardBody, CardHeader, cn, FormMessage, Input, SubmitButton } from "@/components/ui";
 import type { ActionState } from "@/lib/forms";
 import { ACCENT_PRESETS, normalizeHexColor, SITE_STYLE_LIST, SITE_STYLES, type SiteStyleId } from "@/lib/site-styles";
+import { sitePath } from "@/lib/site-paths";
 
 const DESKTOP_WIDTH = 1280;
 const PHONE_WIDTH = 390;
 
-function previewUrl(slug: string, style: SiteStyleId, accent?: string) {
+function previewUrl(siteBase: string, style: SiteStyleId, accent?: string) {
   const qs = new URLSearchParams({ style, embed: "1" });
   if (accent) qs.set("accent", accent);
-  return `/w/${slug}?${qs}`;
+  return `${sitePath(siteBase)}?${qs}`;
 }
 
 /** A scaled-down live render of the couple's own site in one style. */
-function Thumbnail({ slug, style }: { slug: string; style: SiteStyleId }) {
+function Thumbnail({ siteBase, style }: { siteBase: string; style: SiteStyleId }) {
   const scale = 0.25;
   return (
     <div className="relative h-[200px] overflow-hidden rounded-t-[var(--radius-card)] border-b border-line bg-sunken">
       <iframe
-        src={previewUrl(slug, style)}
+        src={previewUrl(siteBase, style)}
         title={`${SITE_STYLES[style].name} preview`}
         loading="lazy"
         tabIndex={-1}
@@ -65,12 +66,12 @@ function LargePreview({ src, device }: { src: string; device: "desktop" | "phone
 }
 
 export function DesignSettings({
-  slug,
+  siteBase,
   savedStyle,
   savedAccent,
   action,
 }: {
-  slug: string;
+  siteBase: string;
   savedStyle: SiteStyleId;
   savedAccent: string;
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -128,7 +129,7 @@ export function DesignSettings({
                   selected ? "border-brand" : "border-line hover:border-line-strong",
                 )}
               >
-                <Thumbnail slug={slug} style={s.id} />
+                <Thumbnail siteBase={siteBase} style={s.id} />
                 <div className="space-y-1 px-4 py-3">
                   <p className="flex items-center gap-2 font-medium text-ink">
                     {s.name}
@@ -203,7 +204,7 @@ export function DesignSettings({
           }
         />
         <CardBody>
-          <LargePreview key={device} src={previewUrl(slug, style, accent)} device={device} />
+          <LargePreview key={device} src={previewUrl(siteBase, style, accent)} device={device} />
         </CardBody>
       </Card>
 

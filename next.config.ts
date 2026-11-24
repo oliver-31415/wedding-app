@@ -14,6 +14,16 @@ const nextConfig: NextConfig = {
       allowedOrigins: process.env.ALLOWED_ORIGINS?.split(",").filter(Boolean),
     },
   },
+  // The guest site of a wedding served at the root of the domain (see
+  // src/lib/site-paths.ts). Paths no app route claims go to /w/_/…, whose
+  // pages show the root wedding — or 404 / the login page when there isn't one.
+  async rewrites() {
+    return {
+      beforeFiles: [{ source: "/", destination: "/w/_" }],
+      afterFiles: [],
+      fallback: [{ source: "/:path*", destination: "/w/_/:path*" }],
+    };
+  },
   turbopack: {
     rules: {
       "*.css": {

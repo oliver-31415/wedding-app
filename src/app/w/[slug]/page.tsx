@@ -8,7 +8,9 @@ import {
 import { pageStyle } from "@/components/site/page-style";
 import { SitePageView } from "@/components/site/site-page-view";
 import { pageUrl, resolveHomeLanding } from "@/lib/pages";
+import { getCurrentUser } from "@/lib/auth";
 import { canViewPage, getViewer } from "@/lib/site-access";
+import { ROOT_SITE_SLUG, sitePath } from "@/lib/site-paths";
 
 export default async function WeddingHomePage({
   params,
@@ -16,7 +18,11 @@ export default async function WeddingHomePage({
 }: PageProps<"/w/[slug]">) {
   const { slug } = await params;
   const wedding = await getWeddingBySlug(slug);
-  if (!wedding) notFound();
+  if (!wedding) {
+    // The domain root on a server with no wedding there yet: the app itself.
+    if (slug === ROOT_SITE_SLUG) redirect((await getCurrentUser()) ? "/admin" : "/login");
+    notFound();
+  }
 
   const viewer = await getViewer(wedding);
   if (!wedding.published && !viewer.isHost) return null;
@@ -42,12 +48,12 @@ export default async function WeddingHomePage({
         />
       );
     case "redirect":
-      redirect(pageUrl(wedding.slug, landing.slug));
+      redirect(pageUrl(wedding.siteBase, landing.slug));
     case "unlock":
-      redirect(`/w/${wedding.slug}/unlock?next=${encodeURIComponent(`/w/${wedding.slug}`)}`);
+      redirect(`${sitePath(wedding.siteBase, "unlock")}?next=${encodeURIComponent(sitePath(wedding.siteBase))}`);
     case "needs_guest":
       return (
-        <NeedsGuestCard weddingSlug={wedding.slug} nextPath={`/w/${wedding.slug}`} />
+        <NeedsGuestCard siteBase={wedding.siteBase} nextPath={sitePath(wedding.siteBase)} />
       );
     case "empty":
       return null;
