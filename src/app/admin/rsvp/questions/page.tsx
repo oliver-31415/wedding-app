@@ -17,15 +17,11 @@ import { requireHost } from "@/lib/auth";
 import {
   describeQuestionConditions,
   describeQuestionRemovalConfirm,
+  summariseQuestion,
 } from "@/lib/rsvp-admin/conditions";
-import { sortByPosition } from "@/lib/rsvp/model";
+import { chainDepth, chainOrder, sortByPosition } from "@/lib/rsvp/model";
 import { loadSnapshot } from "@/lib/snapshot";
-import {
-  archiveQuestion,
-  deleteQuestion,
-  reorderQuestion,
-  restoreQuestion,
-} from "./actions";
+import { deleteQuestion, reorderQuestion, restoreQuestion } from "./actions";
 
 export default async function RsvpQuestionsPage() {
   const { wedding } = await requireHost();
@@ -59,6 +55,14 @@ export default async function RsvpQuestionsPage() {
     if (list) list.push(q.label);
     else activeFollowUpsByParent.set(q.parentQuestionId, [q.label]);
   }
+
+  // Shown as chains: each follow-up nested under the question and answer that trigger it.
+  const chained = chainOrder(activeQuestions);
+  const activeById = new Map(chained.map((q) => [q.id, q]));
+  const effectiveParent = (q: (typeof chained)[number]) =>
+    q.parentQuestionId && activeById.has(q.parentQuestionId) ? q.parentQuestionId : null;
+  const siblingsOf = (q: (typeof chained)[number]) =>
+    chained.filter((x) => effectiveParent(x) === effectiveParent(q)).map((x) => x.id);
 
   const lookups = {
     eventsById: new Map(
@@ -101,85 +105,63 @@ export default async function RsvpQuestionsPage() {
         ) : (
           <Card>
             <ul className="divide-y divide-line">
-              {activeQuestions.map((q, index) => {
-                const answerCount = storedAnswerCounts.get(q.id) ?? 0;
-                const followUps = activeFollowUpsByParent.get(q.id) ?? [];
-                const conditions = describeQuestionConditions(q, lookups);
+              {chained.map((q) => {
+                const depth = chainDepth(q, chained);
+                const parent = q.parentQuestionId ? activeById.get(q.parentQuestionId) : undefined;
+                const trigger = parent?.options.find((o) => o.id === q.parentOptionId)?.label;
+                const siblings = siblingsOf(q);
+                const position = siblings.indexOf(q.id);
+                const followUpCount = activeFollowUpsByParent.get(q.id)?.length ?? 0;
 
                 return (
                   <li key={q.id} className="px-5 py-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div
+                      className={depth > 0 ? "border-l-2 border-line pl-4" : undefined}
+                      style={depth > 0 ? { marginLeft: `${(depth - 1) * 1.5}rem` } : undefined}
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 space-y-1">
+                          {parent && (
+                            <p className="text-xs font-medium text-brand">
+                              ↳ If they answer “{trigger ?? "a removed option"}” to “{parent.label}”
+                            </p>
+                          )}
                           <Link
                             href={`/admin/rsvp/questions/${q.id}`}
                             className="font-medium text-ink hover:text-brand hover:underline"
                           >
                             {q.label}
                           </Link>
-                          <Badge tone="neutral">
-                            {q.type === "choice" ? "Multiple choice" : "Short answer"}
-                          </Badge>
-                          <Badge tone="neutral">
-                            {q.scope === "household" ? "Per household" : "Per guest"}
-                          </Badge>
-                          {q.required && <Badge tone="info">Required</Badge>}
+                          <p className="text-sm text-ink-muted">{summariseQuestion(q, lookups)}</p>
+                          {q.type === "choice" && q.options.length > 0 && (
+                            <p className="text-xs text-ink-faint">{q.options.map((o) => o.label).join(" · ")}</p>
+                          )}
                         </div>
 
-                        <p className="text-sm text-ink-muted">
-                          {conditions.join(" · ")}
-                        </p>
-
-                        {q.type === "choice" && q.options.length > 0 && (
-                          <p className="text-xs text-ink-faint">
-                            Options: {q.options.map((o) => o.label).join(" · ")}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                        <ReorderButtons
-                          id={q.id}
-                          action={reorderQuestion}
-                          isFirst={index === 0}
-                          isLast={index === activeQuestions.length - 1}
-                          label={q.label}
-                        />
-                        <LinkButton
-                          href={`/admin/rsvp/questions/${q.id}`}
-                          variant="secondary"
-                          size="sm"
-                        >
-                          Edit
-                        </LinkButton>
-                        {answerCount === 0 ? (
-                          <form action={deleteQuestion}>
-                            <input type="hidden" name="id" value={q.id} />
-                            <ConfirmButton
-                              confirm={describeQuestionRemovalConfirm(
-                                q.label,
-                                followUps,
-                                "delete",
-                              )}
+                        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                          {siblings.length > 1 && (
+                            <ReorderButtons
+                              id={q.id}
+                              action={reorderQuestion}
+                              isFirst={position === 0}
+                              isLast={position === siblings.length - 1}
+                              label={q.label}
+                            />
+                          )}
+                          {q.type === "choice" && (
+                            <LinkButton
+                              href={`/admin/rsvp/questions/new?parent=${q.id}`}
+                              variant="ghost"
+                              size="sm"
+                              title={followUpCount ? `${followUpCount} follow-up${followUpCount === 1 ? "" : "s"} already` : undefined}
                             >
-                              Delete
-                            </ConfirmButton>
-                          </form>
-                        ) : (
-                          <form action={archiveQuestion}>
-                            <input type="hidden" name="id" value={q.id} />
-                            <ConfirmButton
-                              variant="secondary"
-                              confirm={describeQuestionRemovalConfirm(
-                                q.label,
-                                followUps,
-                                "archive",
-                              )}
-                            >
-                              Archive
-                            </ConfirmButton>
-                          </form>
-                        )}
+                              + Follow-up
+                            </LinkButton>
+                          )}
+                          <LinkButton href={`/admin/rsvp/questions/${q.id}`} variant="secondary" size="sm">
+                            Edit
+                          </LinkButton>
+                        </div>
                       </div>
                     </div>
                   </li>

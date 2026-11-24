@@ -17,6 +17,7 @@ import {
   type ActionState,
 } from "@/lib/forms";
 import { newId } from "@/lib/ids";
+import { chainOrder } from "@/lib/rsvp/model";
 import {
   parseOptionsJson,
   validateQuestionInput,
@@ -74,17 +75,19 @@ async function loadQuestionContext(weddingId: string, editingId: string | null) 
   };
 }
 
+/** Renumbers active questions 0…n in the order guests see them (follow-ups after their question). */
 async function normaliseActivePositions(weddingId: string) {
-  const active = await db
-    .select({ id: schema.questions.id })
-    .from(schema.questions)
-    .where(
-      and(
-        eq(schema.questions.weddingId, weddingId),
-        eq(schema.questions.archived, false),
-      ),
-    )
-    .orderBy(asc(schema.questions.position), asc(schema.questions.createdAt));
+  const active = chainOrder(
+    await db
+      .select({
+        id: schema.questions.id,
+        parentQuestionId: schema.questions.parentQuestionId,
+        position: schema.questions.position,
+      })
+      .from(schema.questions)
+      .where(and(eq(schema.questions.weddingId, weddingId), eq(schema.questions.archived, false)))
+      .orderBy(asc(schema.questions.position), asc(schema.questions.createdAt)),
+  );
 
   for (let i = 0; i < active.length; i++) {
     await db
@@ -153,6 +156,7 @@ export async function createQuestion(
     archived: false,
     position: activeCount,
   });
+  await normaliseActivePositions(wedding.id);
 
   revalidateRsvp(wedding.slug);
   redirect("/admin/rsvp/questions");
@@ -208,43 +212,46 @@ export async function updateQuestion(
       and(eq(schema.questions.id, id), eq(schema.questions.weddingId, wedding.id)),
     );
 
+  await normaliseActivePositions(wedding.id);
   revalidateRsvp(wedding.slug, id);
   return ok("Question saved.");
 }
 
+/**
+ * Moves a question up or down among its siblings (questions that follow up the
+ * same question, or the top-level ones), carrying its follow-ups with it.
+ */
 export async function reorderQuestion(formData: FormData): Promise<void> {
   const { wedding } = await requireHost();
   const id = text(formData, "id");
   const direction = text(formData, "direction");
   if (!id || (direction !== "up" && direction !== "down")) return;
 
-  const active = await db
-    .select({ id: schema.questions.id })
-    .from(schema.questions)
-    .where(
-      and(
-        eq(schema.questions.weddingId, wedding.id),
-        eq(schema.questions.archived, false),
-      ),
-    )
-    .orderBy(asc(schema.questions.position), asc(schema.questions.createdAt));
-
-  const nextIds = moveId(
-    active.map((q) => q.id),
-    id,
-    direction,
+  const active = chainOrder(
+    await db
+      .select({
+        id: schema.questions.id,
+        parentQuestionId: schema.questions.parentQuestionId,
+        position: schema.questions.position,
+      })
+      .from(schema.questions)
+      .where(and(eq(schema.questions.weddingId, wedding.id), eq(schema.questions.archived, false))),
   );
+  const ids = new Set(active.map((q) => q.id));
+  const parentOf = (q: (typeof active)[number]) => (q.parentQuestionId && ids.has(q.parentQuestionId) ? q.parentQuestionId : null);
+  const moving = active.find((q) => q.id === id);
+  if (!moving) return;
+  const siblings = active.filter((q) => parentOf(q) === parentOf(moving)).map((q) => q.id);
+  const reordered = moveId(siblings, id, direction);
+  const siblingRank = new Map(reordered.map((sid, i) => [sid, i]));
 
-  for (let i = 0; i < nextIds.length; i++) {
+  // Siblings take their new ranks; then every active question is renumbered in chain order.
+  const next = chainOrder(active.map((q) => (siblingRank.has(q.id) ? { ...q, position: siblingRank.get(q.id)! } : q)));
+  for (let i = 0; i < next.length; i++) {
     await db
       .update(schema.questions)
       .set({ position: i })
-      .where(
-        and(
-          eq(schema.questions.id, nextIds[i]),
-          eq(schema.questions.weddingId, wedding.id),
-        ),
-      );
+      .where(and(eq(schema.questions.id, next[i].id), eq(schema.questions.weddingId, wedding.id)));
   }
 
   revalidateRsvp(wedding.slug);

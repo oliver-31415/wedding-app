@@ -124,3 +124,34 @@ export function formatFollowUpWarning(activeFollowUpLabels: string[]): string | 
   const listed = activeFollowUpLabels.map((l) => `“${l}”`).join(", ");
   return `Its ${activeFollowUpLabels.length} follow-up questions (${listed}) won't be asked any more.`;
 }
+
+/**
+ * A question's settings as one short sentence for the questions list, e.g.
+ * "Each guest coming to Reception · tagged Family · must answer". The
+ * follow-up condition is left out: the list shows it by nesting the question
+ * under the answer that triggers it.
+ */
+export function summariseQuestion(
+  question: ConditionSubject & { type: "choice" | "text"; required: boolean },
+  lookups: ConditionLookups,
+): string {
+  const who = question.scope === "household" ? "Once per household" : "Each guest";
+  const parts: string[] = [];
+  if (question.eventId) {
+    const event = lookups.eventsById.get(question.eventId);
+    parts.push(
+      event
+        ? `${who} coming to ${event.name}${event.rsvpEnabled === false ? " (RSVPs off for it)" : ""}`
+        : `${who} · its event was removed`,
+    );
+  } else {
+    parts.push(question.parentQuestionId ? who : `${who} coming to anything`);
+  }
+  if (question.audience.mode === "tags") {
+    const names = question.audience.tagIds.map((id) => lookups.tagsById.get(id)).filter(Boolean);
+    parts.push(names.length ? `tagged ${names.join(" or ")}` : "nobody (its tags were removed)");
+  }
+  parts.push(question.type === "choice" ? "pick one" : "typed answer");
+  if (question.required) parts.push("must answer");
+  return parts.join(" · ");
+}

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  chainDepth,
+  chainOrder,
   householdLabel,
   householdRsvpState,
   responsesMap,
@@ -265,5 +267,29 @@ describe("householdLabel", () => {
     expect(householdLabel({ envelopeName: "The Joneses" }, [david])).toBe("The Joneses");
     expect(householdLabel({ envelopeName: null }, [david, susan])).toBe("David & Susan Jones");
     expect(householdLabel({ envelopeName: null }, [david, guest("amy", "h1", { lastName: "Lee" })])).toBe("David Jones & Amy Lee");
+  });
+});
+
+describe("chainOrder", () => {
+  const q = (id: string, position: number, parentQuestionId: string | null = null) => ({ id, position, parentQuestionId });
+  it("puts each follow-up straight after its question, siblings by position", () => {
+    const order = chainOrder([
+      q("song", 2),
+      q("details", 0, "diet"),
+      q("meal", 0),
+      q("diet", 1),
+      q("severity", 1, "details"),
+      q("other", 2, "diet"),
+    ]);
+    expect(order.map((x) => x.id)).toEqual(["meal", "diet", "details", "severity", "other", "song"]);
+  });
+
+  it("treats a follow-up whose question is missing as top level", () => {
+    expect(chainOrder([q("b", 1), q("orphan", 0, "gone")]).map((x) => x.id)).toEqual(["orphan", "b"]);
+  });
+
+  it("measures depth", () => {
+    const qs = [q("a", 0), q("b", 0, "a"), q("c", 0, "b")];
+    expect(qs.map((x) => chainDepth(x, qs))).toEqual([0, 1, 2]);
   });
 });

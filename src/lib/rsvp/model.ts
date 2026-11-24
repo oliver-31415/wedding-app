@@ -125,7 +125,45 @@ export const answerKey = (questionId: string, guestId: string | null) =>
   `${questionId}:${guestId ?? "household"}`;
 
 function activeQuestions(questions: SnapQuestion[]): SnapQuestion[] {
-  return sortByPosition(questions.filter((q) => !q.archived));
+  return chainOrder(questions.filter((q) => !q.archived));
+}
+
+/**
+ * Questions in the order guests see them: each question straight after the
+ * one it follows up (`parentQuestionId`), siblings by `position`. A follow-up
+ * whose parent isn't in the list is treated as a top-level question.
+ */
+export function chainOrder<T extends { id: string; parentQuestionId: string | null; position: number }>(questions: T[]): T[] {
+  const ids = new Set(questions.map((q) => q.id));
+  const children = new Map<string | null, T[]>();
+  for (const q of sortByPosition(questions)) {
+    const parent = q.parentQuestionId && ids.has(q.parentQuestionId) ? q.parentQuestionId : null;
+    children.set(parent, [...(children.get(parent) ?? []), q]);
+  }
+  const out: T[] = [];
+  const seen = new Set<string>();
+  const visit = (q: T) => {
+    if (seen.has(q.id)) return;
+    seen.add(q.id);
+    out.push(q);
+    for (const c of children.get(q.id) ?? []) visit(c);
+  };
+  for (const root of children.get(null) ?? []) visit(root);
+  // Anything left (a cycle, which validation prevents) still shows up once.
+  for (const q of sortByPosition(questions)) visit(q);
+  return out;
+}
+
+/** How deep a question sits in its chain (0 = top level). */
+export function chainDepth<T extends { id: string; parentQuestionId: string | null }>(question: T, questions: T[]): number {
+  const byId = new Map(questions.map((q) => [q.id, q]));
+  let depth = 0;
+  let parent = question.parentQuestionId ? byId.get(question.parentQuestionId) : undefined;
+  while (parent && depth < 10) {
+    depth++;
+    parent = parent.parentQuestionId ? byId.get(parent.parentQuestionId) : undefined;
+  }
+  return depth;
 }
 
 /**

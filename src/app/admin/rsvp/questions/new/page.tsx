@@ -6,8 +6,9 @@ import { EVERYONE } from "@/lib/audience";
 import { requireHost } from "@/lib/auth";
 import { createQuestion } from "../actions";
 
-export default async function NewRsvpQuestionPage() {
+export default async function NewRsvpQuestionPage({ searchParams }: PageProps<"/admin/rsvp/questions/new">) {
   const { wedding } = await requireHost();
+  const { parent: parentParam } = await searchParams;
 
   const [allQuestions, events, weddingTags] = await Promise.all([
     db
@@ -31,11 +32,21 @@ export default async function NewRsvpQuestionPage() {
       .orderBy(asc(schema.tags.name)),
   ]);
 
+  // "+ Follow-up" on the questions list: start as a follow-up to that question.
+  const parent =
+    typeof parentParam === "string"
+      ? allQuestions.find((q) => q.id === parentParam && !q.archived && q.type === "choice")
+      : undefined;
+
   return (
     <div>
       <PageHeader
-        title="Add a question"
-        description="This question will appear on your RSVP form for matching guests."
+        title={parent ? "Add a follow-up" : "Add a question"}
+        description={
+          parent
+            ? `Asked after “${parent.label}”, only when guests give the answer you choose below.`
+            : "This question will appear on your RSVP form for matching guests."
+        }
         back={
           <BackLink href="/admin/rsvp/questions">Questions</BackLink>
         }
@@ -47,12 +58,13 @@ export default async function NewRsvpQuestionPage() {
             action={createQuestion}
             initial={{
               label: "",
-              type: "choice",
+              // Follow-ups are usually "tell us more", so they start as typed answers.
+              type: parent ? "text" : "choice",
               options: [],
               required: false,
-              scope: "guest",
+              scope: parent?.scope ?? "guest",
               eventId: null,
-              parentQuestionId: null,
+              parentQuestionId: parent?.id ?? null,
               parentOptionId: null,
               audience: EVERYONE,
             }}

@@ -10,12 +10,15 @@ import {
   Input,
   LinkButton,
   Notice,
-  Select,
   SubmitButton,
 } from "@/components/ui";
 import type { Audience, QuestionOption, QuestionType } from "@/db/schema";
 import type { ActionState } from "@/lib/forms";
 import { eligibleParentQuestions, type ExistingQuestionRef } from "@/lib/rsvp-admin/validation";
+
+/** A select that sits inside a sentence ("Ask [each guest] coming to [Reception]"). */
+const inlineSelect =
+  "h-8 rounded-md border border-control bg-surface px-2 text-sm font-medium text-ink focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 aria-[invalid=true]:border-bad";
 
 type OptionRow = {
   key: string;
@@ -80,6 +83,8 @@ export function QuestionForm({
   const [eventId, setEventId] = useState(initial.eventId ?? "");
   const [parentQuestionId, setParentQuestionId] = useState(initial.parentQuestionId ?? "");
   const [parentOptionId, setParentOptionId] = useState(initial.parentOptionId ?? "");
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const showFollowUp = followUpOpen || !!parentQuestionId;
 
   const nextKey = useRef(0);
   const initialOptionsSig = useMemo(() => JSON.stringify(initial.options), [initial.options]);
@@ -178,7 +183,7 @@ export function QuestionForm({
       </Field>
 
       <Field
-        label="Answer type"
+        label="How guests answer"
         htmlFor="type-choice"
         error={state?.errors?.type}
         hint={
@@ -191,45 +196,36 @@ export function QuestionForm({
           <>
             <input type="hidden" name="type" value={type} />
             <p className="rounded-lg border border-line bg-sunken px-3 py-2 text-sm text-ink">
-              {type === "choice" ? "Multiple choice" : "Short answer"}
+              {type === "choice" ? "Pick one option" : "Type an answer"}
             </p>
           </>
         ) : (
-          <div className="space-y-2">
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                id="type-choice"
-                type="radio"
-                name="type"
-                value="choice"
-                checked={type === "choice"}
-                onChange={() => setType("choice")}
-                className="mt-0.5 size-4 accent-brand"
-              />
-              <span>
-                <span className="font-medium text-ink">Multiple choice</span>
-                <span className="block text-ink-muted">
-                  Guests pick one option (e.g. meal choice or yes/no).
+          <div role="radiogroup" className="flex flex-wrap gap-2">
+            {(
+              [
+                ["choice", "Pick one option", "e.g. meal choice, yes / no"],
+                ["text", "Type an answer", "e.g. allergies, a song"],
+              ] as const
+            ).map(([value, title, example]) => (
+              <label
+                key={value}
+                className="flex cursor-pointer items-center gap-2 rounded-lg border border-control px-3 py-2 text-sm has-[:checked]:border-brand has-[:checked]:bg-brand-soft"
+              >
+                <input
+                  id={`type-${value}`}
+                  type="radio"
+                  name="type"
+                  value={value}
+                  checked={type === value}
+                  onChange={() => setType(value)}
+                  className="size-4 accent-brand"
+                />
+                <span>
+                  <span className="font-medium text-ink">{title}</span>
+                  <span className="text-ink-muted"> · {example}</span>
                 </span>
-              </span>
-            </label>
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                id="type-text"
-                type="radio"
-                name="type"
-                value="text"
-                checked={type === "text"}
-                onChange={() => setType("text")}
-                className="mt-0.5 size-4 accent-brand"
-              />
-              <span>
-                <span className="font-medium text-ink">Short answer</span>
-                <span className="block text-ink-muted">
-                  Guests type their own reply (e.g. allergies or song request).
-                </span>
-              </span>
-            </label>
+              </label>
+            ))}
           </div>
         )}
       </Field>
@@ -276,25 +272,20 @@ export function QuestionForm({
                       Remove
                     </Button>
                   </div>
-                  {hasAnswers && (
-                    <p className="text-xs text-ink-muted">
-                      Already chosen by guests — you can rename this option, but not remove it.
-                    </p>
-                  )}
-                  {!hasAnswers && hasFollowUps && (
-                    <p className="text-xs text-ink-muted">
-                      Used by a follow-up question — update the follow-up first to remove it.
-                    </p>
-                  )}
                 </div>
               );
             })}
           </div>
 
-          <div className="pt-1">
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <Button variant="secondary" size="sm" onClick={addOption}>
               Add option
             </Button>
+            {options.some((o) => o.id && (answeredSet.has(o.id) || referencedSet.has(o.id))) && (
+              <p className="text-xs text-ink-muted">
+                Options guests have chosen, or that a follow-up depends on, can be renamed but not removed.
+              </p>
+            )}
           </div>
 
           {state?.errors?.options && (
@@ -303,174 +294,141 @@ export function QuestionForm({
         </div>
       )}
 
-      <Checkbox
-        id="required"
-        name="required"
-        label="Required"
-        hint="Guests must answer this question before submitting their RSVP."
-        checked={required}
-        onChange={(e) => setRequired(e.target.checked)}
-      />
+      <fieldset className="space-y-4 rounded-xl border border-line bg-sunken/40 p-4">
+        <legend className="px-1 text-sm font-semibold text-ink">Who&apos;s asked</legend>
 
-      <Field
-        label="Who answers"
-        htmlFor="scope-guest"
-        error={state?.errors?.scope}
-        hint={
-          scopeLocked
-            ? `Can't be changed because ${lockReason}.`
-            : undefined
-        }
-      >
-        {scopeLocked ? (
-          <>
-            <input type="hidden" name="scope" value={scope} />
-            <p className="rounded-lg border border-line bg-sunken px-3 py-2 text-sm text-ink">
-              {scope === "household" ? "Ask once per household" : "Ask each guest"}
-            </p>
-          </>
-        ) : (
-          <div className="space-y-2">
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                id="scope-guest"
-                type="radio"
-                name="scope"
-                value="guest"
-                checked={scope === "guest"}
-                onChange={() => handleScopeChange("guest")}
-                className="mt-0.5 size-4 accent-brand"
-              />
-              <span>
-                <span className="font-medium text-ink">Ask each guest</span>
-                <span className="block text-ink-muted">
-                  Each person in the household gives their own answer.
-                </span>
+        {/* One sentence of choices: who answers, and when. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm text-ink">
+          <span>Ask</span>
+          {scopeLocked ? (
+            <>
+              <input type="hidden" name="scope" value={scope} />
+              <span className="rounded-md bg-surface px-2 py-1 font-medium" title={`Can't be changed because ${lockReason}.`}>
+                {scope === "household" ? "once per household" : "each guest"}
               </span>
-            </label>
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                id="scope-household"
-                type="radio"
-                name="scope"
-                value="household"
-                checked={scope === "household"}
-                onChange={() => handleScopeChange("household")}
-                className="mt-0.5 size-4 accent-brand"
-              />
-              <span>
-                <span className="font-medium text-ink">Ask once per household</span>
-                <span className="block text-ink-muted">
-                  One shared answer for the whole household (e.g. a song request).
-                </span>
-              </span>
-            </label>
-          </div>
-        )}
-      </Field>
-
-      <div className="space-y-5 border-t border-line pt-5">
-        <div>
-          <h2 className="text-sm font-semibold text-ink">When to ask this question</h2>
-          <p className="mt-0.5 text-sm text-ink-muted">
-            Leave these blank to ask everyone who replies.
-          </p>
-        </div>
-
-        <Field
-          label="Only ask guests attending…"
-          htmlFor="eventId"
-          optional
-          error={state?.errors?.eventId}
-          hint={
-            scope === "household"
-              ? "Asked when at least one person in the household is attending this event."
-              : "Only shown to guests who say they are attending this event."
-          }
-        >
-          <Select
+            </>
+          ) : (
+            <select
+              aria-label="Who answers"
+              name="scope"
+              value={scope}
+              onChange={(e) => handleScopeChange(e.target.value as "guest" | "household")}
+              className={inlineSelect}
+            >
+              <option value="guest">each guest</option>
+              <option value="household">once per household</option>
+            </select>
+          )}
+          <span>coming to</span>
+          <select
+            aria-label="Which event"
             id="eventId"
             name="eventId"
             value={eventId}
             onChange={(e) => setEventId(e.target.value)}
-            invalid={!!state?.errors?.eventId}
+            aria-invalid={!!state?.errors?.eventId || undefined}
+            className={inlineSelect}
           >
-            <option value="">Anyone coming to at least one event</option>
+            <option value="">{parentQuestionId ? "whatever the first question was for" : "any event"}</option>
             {selectableEvents.map((ev) => (
               <option key={ev.id} value={ev.id}>
                 {ev.name}
                 {!ev.rsvpEnabled ? " (RSVPs turned off)" : ""}
               </option>
             ))}
-          </Select>
-        </Field>
+          </select>
+        </div>
+        {scopeLocked && <p className="text-xs text-ink-muted">Who answers can&apos;t be changed because {lockReason}.</p>}
+        {state?.errors?.scope && <p className="text-sm text-bad">{state.errors.scope}</p>}
+        {state?.errors?.eventId && <p className="text-sm text-bad">{state.errors.eventId}</p>}
 
-        <div className="space-y-3">
-          <Field
-            label="Only ask if…"
-            htmlFor="parentQuestionId"
-            optional
-            error={state?.errors?.parentQuestionId}
-            hint={
-              scopedParents.length === 0
-                ? `No other ${scope === "household" ? "per-household" : "per-guest"} multiple-choice questions available yet.`
-                : "Show this as a follow-up to another multiple-choice question with the same scope."
-            }
-          >
-            <Select
-              id="parentQuestionId"
-              name="parentQuestionId"
-              value={parentQuestionId}
-              onChange={(e) => {
-                setParentQuestionId(e.target.value);
-                setParentOptionId("");
-              }}
-              invalid={!!state?.errors?.parentQuestionId}
-              disabled={scopedParents.length === 0 && !parentQuestionId}
-            >
-              <option value="">Always ask (not a follow-up)</option>
-              {scopedParents.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          {selectedParent && (
-            <Field
-              label="They answered"
-              htmlFor="parentOptionId"
-              error={state?.errors?.parentOptionId}
-            >
-              <Select
-                id="parentOptionId"
-                name="parentOptionId"
-                value={parentOptionId}
-                onChange={(e) => setParentOptionId(e.target.value)}
-                invalid={!!state?.errors?.parentOptionId}
+        {showFollowUp ? (
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm text-ink">
+              <span>only if they answered</span>
+              {selectedParent ? (
+                <select
+                  aria-label="The answer that shows this question"
+                  id="parentOptionId"
+                  name="parentOptionId"
+                  value={parentOptionId}
+                  onChange={(e) => setParentOptionId(e.target.value)}
+                  aria-invalid={!!state?.errors?.parentOptionId || undefined}
+                  className={inlineSelect}
+                >
+                  <option value="">choose an answer…</option>
+                  {selectedParent.options.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      “{o.label}”
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-ink-muted">…</span>
+              )}
+              <span>to</span>
+              <select
+                aria-label="The question this follows"
+                id="parentQuestionId"
+                name="parentQuestionId"
+                value={parentQuestionId}
+                onChange={(e) => {
+                  setParentQuestionId(e.target.value);
+                  setParentOptionId("");
+                }}
+                aria-invalid={!!state?.errors?.parentQuestionId || undefined}
+                className={inlineSelect}
               >
-                <option value="">Choose an option…</option>
-                {selectedParent.options.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
+                <option value="">choose a question…</option>
+                {scopedParents.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    “{p.label}”
                   </option>
                 ))}
-              </Select>
-            </Field>
-          )}
-        </div>
+              </select>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setFollowUpOpen(false);
+                  setParentQuestionId("");
+                  setParentOptionId("");
+                }}
+              >
+                Not a follow-up
+              </Button>
+            </div>
+            {(state?.errors?.parentQuestionId || state?.errors?.parentOptionId) && (
+              <p className="text-sm text-bad">{state?.errors?.parentQuestionId ?? state?.errors?.parentOptionId}</p>
+            )}
+          </div>
+        ) : (
+          scopedParents.length > 0 && (
+            <Button size="sm" variant="secondary" onClick={() => setFollowUpOpen(true)}>
+              Make this a follow-up to another question
+            </Button>
+          )
+        )}
 
-        <Field label="Who's asked" htmlFor="audienceMode" error={state?.errors?.audience}>
-          <AudiencePicker
-            name="audience"
-            tags={tags}
-            defaultValue={initial.audience}
-            everyoneLabel="Everyone"
-            tagsLabel="Only guests with these tags"
-          />
-        </Field>
-      </div>
+        <AudiencePicker
+          name="audience"
+          tags={tags}
+          defaultValue={initial.audience}
+          legend="Which guests"
+          everyoneLabel="Everyone it applies to"
+          tagsLabel="Only guests with certain tags"
+          error={state?.errors?.audience}
+        />
+
+        <Checkbox
+          id="required"
+          name="required"
+          label="They must answer"
+          hint="Guests can't send their RSVP until they've answered this."
+          checked={required}
+          onChange={(e) => setRequired(e.target.checked)}
+        />
+      </fieldset>
 
       {isEditing && childCount > 0 && (
         <Notice tone="info">
