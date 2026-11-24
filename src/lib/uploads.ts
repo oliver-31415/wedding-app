@@ -3,40 +3,63 @@ import { lookup } from "node:dns/promises";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { newId } from "@/lib/ids";
-import { detectImageType, findImageInHtml, isPublicAddress, type ImageType } from "./uploads-shared";
+import { MAX_IMAGE_BYTES } from "@/lib/photos-shared";
+import {
+  detectImageType,
+  findImageInHtml,
+  isPublicAddress,
+  isAnimatedImage,
+  readImageSize,
+  stripImageMetadata,
+  type ImageType,
+} from "./uploads-shared";
 
 /**
- * Image storage for gift pictures. Files live in UPLOAD_DIR (default
+ * Image storage for gift pictures and photos. Files live in UPLOAD_DIR (default
  * ./data/uploads, next to the database — back both up together) and are
  * served from /uploads/<file>. Remote images are always downloaded and stored,
  * never hotlinked, so pictures don't break when a shop changes its site.
  */
 
 const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? "./data/uploads");
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_HTML_BYTES = 1024 * 1024;
 const EXT: Record<ImageType, string> = { jpeg: "jpg", png: "png", webp: "webp", gif: "gif" };
 export const CONTENT_TYPE: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
 export const UPLOAD_FILE_RE = /^[A-Za-z0-9_-]{8,40}\.(jpg|png|webp|gif)$/;
 
-export type ImageResult = { ok: true; url: string } | { ok: false; error: string };
+export type ImageResult = { ok: true; url: string; width: number; height: number } | { ok: false; error: string };
 
-/** Validates the bytes really are an image (not just the claimed type) and stores them. */
-export async function saveImage(bytes: Uint8Array): Promise<ImageResult> {
+/**
+ * Validates the bytes really are an image (not just the claimed type) and
+ * stores them. Photos pass `photo: true`, which refuses GIFs — they're
+ * animations, and the site never plays moving pictures.
+ */
+export async function saveImage(bytes: Uint8Array, opts: { photo?: boolean } = {}): Promise<ImageResult> {
   if (bytes.byteLength > MAX_IMAGE_BYTES) return { ok: false, error: "That picture is too large (5 MB max)." };
   const type = detectImageType(bytes);
-  if (!type) return { ok: false, error: "That file isn't a JPEG, PNG, WebP or GIF picture." };
+  if (opts.photo && type === "gif") return { ok: false, error: "GIFs can't be used for photos. Choose a JPEG, PNG or WebP picture." };
+  if (!type) {
+    return {
+      ok: false,
+      error: opts.photo ? "That file isn't a JPEG, PNG or WebP photo." : "That file isn't a JPEG, PNG, WebP or GIF picture.",
+    };
+  }
+  if (opts.photo && isAnimatedImage(bytes)) return { ok: false, error: "Moving pictures can't be used for photos." };
+  const size = readImageSize(bytes);
+  // Phone photos carry the GPS position they were taken at: never publish it.
+  const clean = stripImageMetadata(bytes);
+  if (!size || size.width < 1 || size.height < 1 || !clean) return { ok: false, error: "That picture couldn't be read." };
   const file = `${newId()}.${EXT[type]}`;
   await mkdir(UPLOAD_DIR, { recursive: true });
-  await writeFile(path.join(UPLOAD_DIR, file), bytes);
-  return { ok: true, url: `/uploads/${file}` };
+  await writeFile(path.join(UPLOAD_DIR, file), clean);
+  return { ok: true, url: `/uploads/${file}`, ...size };
 }
 
 /** From a <input type="file"> in a Server Action's FormData. */
-export async function saveUploadedImage(file: File): Promise<ImageResult> {
-  if (file.size === 0) return { ok: false, error: "Choose a picture to upload." };
+export async function saveUploadedImage(file: File, opts: { photo?: boolean } = {}): Promise<ImageResult> {
+  if (file.size === 0) return { ok: false, error: opts.photo ? "Choose a photo to upload." : "Choose a picture to upload." };
   if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: "That picture is too large (5 MB max)." };
-  return saveImage(new Uint8Array(await file.arrayBuffer()));
+  return saveImage(new Uint8Array(await file.arrayBuffer()), opts);
 }
 
 /** Downloads a picture from the web and stores it. */

@@ -81,6 +81,15 @@ export const PAGE_TYPE_META: Record<PageType, PageTypeMeta> = {
     singleton: true,
     hasItems: false,
   },
+  photos: {
+    type: "photos",
+    label: "Photos",
+    defaultTitle: "Photos",
+    description: "A small, chosen set of photos (up to 12).",
+    fixedSlug: "photos",
+    singleton: true,
+    hasItems: false,
+  },
   custom: {
     type: "custom",
     label: "Custom page",
@@ -100,6 +109,7 @@ export const RESERVED_SLUGS = new Set<string>([
   "faq",
   "gifts",
   "rsvp",
+  "photos",
   "unlock",
   "find",
   "i",

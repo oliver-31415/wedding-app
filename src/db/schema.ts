@@ -175,6 +175,7 @@ export const PAGE_TYPES = [
   "faq",
   "gifts",
   "rsvp",
+  "photos",
   "custom",
 ] as const;
 export type PageType = (typeof PAGE_TYPES)[number];
@@ -229,6 +230,49 @@ export const pageItems = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("page_items_page").on(t.pageId)],
+);
+
+// ---------------------------------------------------------------- photos
+
+export const PHOTO_KINDS = ["cover", "item", "gallery"] as const;
+export type PhotoKind = (typeof PHOTO_KINDS)[number];
+
+/**
+ * Curated photos (no video, ever). Caps live in src/lib/photos-shared.ts.
+ *  cover:   one per wedding, shown on the Home page
+ *  item:    one per story milestone / wedding-party member (`pageItemId`)
+ *  gallery: up to 12 on the Photos page (`pageId`), ordered by `position`
+ * Files live in UPLOAD_DIR; delete them with the row (src/lib/photos.ts).
+ */
+export const photos = sqliteTable(
+  "photos",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    kind: text("kind", { enum: PHOTO_KINDS }).notNull(),
+    pageItemId: text("page_item_id").references(() => pageItems.id, { onDelete: "cascade" }),
+    pageId: text("page_id").references(() => pages.id, { onDelete: "cascade" }),
+    /** /uploads/<file> */
+    url: text("url").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    /** Null = a sensible fallback when rendered (see the site photo components). */
+    alt: text("alt"),
+    caption: text("caption"),
+    /** CSS object-position for crops, e.g. "50% 20%". */
+    focus: text("focus").notNull(),
+    position: position(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("photos_one_cover").on(t.weddingId).where(sql`${t.kind} = 'cover'`),
+    uniqueIndex("photos_one_per_item").on(t.pageItemId),
+    index("photos_page").on(t.pageId, t.position),
+    check(
+      "photos_owner",
+      sql`(${t.kind} = 'cover' AND ${t.pageItemId} IS NULL AND ${t.pageId} IS NULL) OR (${t.kind} = 'item' AND ${t.pageItemId} IS NOT NULL AND ${t.pageId} IS NULL) OR (${t.kind} = 'gallery' AND ${t.pageId} IS NOT NULL AND ${t.pageItemId} IS NULL)`,
+    ),
+  ],
 );
 
 // ---------------------------------------------------------------- events

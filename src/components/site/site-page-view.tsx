@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { GiftsPageBody } from "@/components/site/gifts/gifts-page-body";
+import { CoverPhoto } from "@/components/site/photos/cover-photo";
+import { PhotoGallery } from "@/components/site/photos/photo-gallery";
+import { SitePhotoImg } from "@/components/site/photos/site-photo";
 import { RsvpPageBody } from "@/components/site/rsvp/rsvp-page-body";
 import { getPageItems, getWeddingEvents, getWeddingTagNames } from "@/components/site/site-data";
 import { cn, TextBlock } from "@/components/ui";
@@ -9,6 +12,8 @@ import { describeAudience } from "@/lib/audience";
 import { formatDateLong, formatTimeRange } from "@/lib/dates";
 import { eventNeedsGuest, visibleEvents } from "@/lib/event-visibility";
 import { buildGoogleCalendarUrl, buildGoogleMapsUrl, pageUrl } from "@/lib/pages";
+import { getCoverPhoto, getGalleryPhotos, getItemPhotos } from "@/lib/photos";
+import { DEFAULT_FOCUS, type SitePhoto } from "@/lib/photos-shared";
 import type { SnapGuest } from "@/lib/rsvp/model";
 import type { Viewer } from "@/lib/site-access";
 import { sitePath } from "@/lib/site-paths";
@@ -56,11 +61,27 @@ export async function SitePageView({
     ) : null;
 
   if (page.type === "home") {
+    const coverPhoto = await getCoverPhoto(wedding.id);
     return (
-      <div className={cn("mx-auto", t.width)}>
-        {hiddenBanner}
+      <div className={style.id === "minimal" ? "space-y-9 sm:space-y-12" : "space-y-10"}>
+        {hiddenBanner && <div className={cn("mx-auto", t.width)}>{hiddenBanner}</div>}
+        {coverPhoto && (
+          <CoverPhoto
+            photo={coverPhoto}
+            partnerOne={wedding.partnerOne}
+            partnerTwo={wedding.partnerTwo}
+            styleId={style.id}
+          />
+        )}
         {page.body?.trim() ? (
-          <div className={cn("text-lg leading-relaxed text-ink sm:text-xl", t.align, style.id === "garden" && "font-serif text-2xl sm:text-3xl")}>
+          <div
+            className={cn(
+              "mx-auto text-lg leading-relaxed text-ink sm:text-xl",
+              t.width,
+              t.align,
+              style.id === "garden" && "font-serif text-2xl sm:text-3xl",
+            )}
+          >
             <TextBlock text={page.body} />
           </div>
         ) : null}
@@ -105,11 +126,20 @@ export async function SitePageView({
       </div>
     );
   } else if (page.type === "story") {
-    const items = await getPageItems(wedding.id, page.id);
-    if (items.length) body = <Story items={items} style={style} />;
+    const [items, photos] = await Promise.all([
+      getPageItems(wedding.id, page.id),
+      getItemPhotos(wedding.id, page.id),
+    ]);
+    if (items.length) body = <Story items={items} photos={photos} style={style} />;
   } else if (page.type === "party") {
-    const items = await getPageItems(wedding.id, page.id);
-    if (items.length) body = <Party items={items} style={style} />;
+    const [items, photos] = await Promise.all([
+      getPageItems(wedding.id, page.id),
+      getItemPhotos(wedding.id, page.id),
+    ]);
+    if (items.length) body = <Party items={items} photos={photos} style={style} />;
+  } else if (page.type === "photos") {
+    const photos = await getGalleryPhotos(wedding.id, page.id);
+    if (photos.length) body = <PhotoGallery photos={photos} styleId={style.id} />;
   } else if (page.type === "faq") {
     const items = await getPageItems(wedding.id, page.id);
     if (items.length) body = <Faq items={items} style={style} />;
@@ -355,33 +385,144 @@ function IdentifyPrompt({ siteBase, next, style, text }: { siteBase: string; nex
 
 // ------------------------------------------------------------ story / party / faq
 
-function Story({ items, style }: { items: Item[]; style: SiteStyleSpec }) {
+function Story({
+  items,
+  photos,
+  style,
+}: {
+  items: Item[];
+  photos: Map<string, SitePhoto>;
+  style: SiteStyleSpec;
+}) {
   const t = typography(style);
-  const panels = style.layout.content === "soft-panels" || style.layout.content === "cards";
+  let nextPhotoIndex = 0;
+  const entries = items.map((item) => {
+    const photo = photos.get(item.id);
+    return { item, photo, photoIndex: photo ? nextPhotoIndex++ : -1 };
+  });
+  const hasPhotos = nextPhotoIndex > 0;
+
+  const copy = (item: Item) => (
+    <>
+      <h2 className={t.itemHeading}>{item.title}</h2>
+      {item.body && (
+        <div className="mt-3 text-base leading-relaxed text-ink-muted">
+          <TextBlock text={item.body} />
+        </div>
+      )}
+    </>
+  );
+
+  if (style.id === "modern") {
+    return (
+      <div className={cn("mx-auto divide-y divide-line", t.width)}>
+        {entries.map(({ item, photo }) => (
+          <article
+            key={item.id}
+            className={cn(
+              "py-8 text-left first:pt-0 last:pb-0",
+              photo && "md:grid md:grid-cols-[minmax(0,18rem)_1fr] md:items-start md:gap-10",
+            )}
+          >
+            {photo && (
+              <div className="mb-4 aspect-[4/3] overflow-hidden rounded-[var(--radius-card)] border border-line bg-sunken md:mb-0">
+                <SitePhotoImg photo={photo} alt={photo.alt?.trim() ?? ""} />
+              </div>
+            )}
+            <div className="min-w-0">{copy(item)}</div>
+          </article>
+        ))}
+      </div>
+    );
+  }
+
+  if (style.id === "editorial") {
+    return (
+      <div className={cn("mx-auto", t.width)}>
+        {entries.map(({ item, photo }) => (
+          <article key={item.id} className="border-t border-ink py-8 text-left last:pb-0">
+            {photo && (
+              <div className="mb-5 aspect-[4/3] overflow-hidden rounded-[var(--radius-card)] bg-sunken sm:aspect-[3/2]">
+                <SitePhotoImg photo={photo} alt={photo.alt?.trim() ?? ""} />
+              </div>
+            )}
+            {copy(item)}
+          </article>
+        ))}
+      </div>
+    );
+  }
+
+  if (style.id === "minimal") {
+    return (
+      <div className={cn("mx-auto divide-y divide-line", t.width)}>
+        {entries.map(({ item, photo }) => (
+          <article key={item.id} className="py-8 text-center first:pt-0 last:pb-0">
+            {photo && (
+              <div className="mx-auto mb-6 aspect-[4/3] w-full max-w-md overflow-hidden rounded-none border border-line bg-sunken">
+                <SitePhotoImg photo={photo} alt={photo.alt?.trim() ?? ""} />
+              </div>
+            )}
+            {copy(item)}
+          </article>
+        ))}
+      </div>
+    );
+  }
+
+  // Classic (bordered cards) & Garden (soft panels): widen to max-w-3xl when
+  // photos are present and alternate image left/right by photo index.
+  const isClassic = style.id === "classic";
   return (
-    <div className={cn("mx-auto", t.width, panels ? "space-y-5" : "divide-y divide-line")}>
-      {items.map((item) => (
-        <article
-          key={item.id}
-          className={cn(
-            panels ? "rounded-[var(--radius-card)] bg-surface p-6 sm:p-8" : "py-8 first:pt-0 last:pb-0",
-            style.layout.content === "cards" && "border border-line",
-            t.align,
-          )}
-        >
-          <h2 className={t.itemHeading}>{item.title}</h2>
-          {item.body && (
-            <div className="mt-3 text-base leading-relaxed text-ink-muted">
-              <TextBlock text={item.body} />
-            </div>
-          )}
-        </article>
-      ))}
+    <div className={cn("mx-auto space-y-5", hasPhotos ? "max-w-3xl" : t.width)}>
+      {entries.map(({ item, photo, photoIndex }) => {
+        const flip = photoIndex % 2 === 1;
+        return (
+          <article
+            key={item.id}
+            className={cn(
+              "rounded-[var(--radius-card)] bg-surface p-6 sm:p-8",
+              isClassic && "border border-line",
+              photo
+                ? cn(
+                    "md:grid md:grid-cols-2 md:items-center md:gap-8",
+                    isClassic ? "text-left" : "text-center md:text-left",
+                  )
+                : t.align,
+            )}
+          >
+            {photo ? (
+              <>
+                <div
+                  className={cn(
+                    "mb-5 aspect-[4/3] overflow-hidden rounded-[var(--radius-control)] bg-sunken md:mb-0",
+                    isClassic && "border border-line",
+                    flip && "md:order-2",
+                  )}
+                >
+                  <SitePhotoImg photo={photo} alt={photo.alt?.trim() ?? ""} />
+                </div>
+                <div className={cn("min-w-0", flip && "md:order-1")}>{copy(item)}</div>
+              </>
+            ) : (
+              <div className={cn(hasPhotos && "mx-auto max-w-2xl")}>{copy(item)}</div>
+            )}
+          </article>
+        );
+      })}
     </div>
   );
 }
 
-function Party({ items, style }: { items: Item[]; style: SiteStyleSpec }) {
+function Party({
+  items,
+  photos,
+  style,
+}: {
+  items: Item[];
+  photos: Map<string, SitePhoto>;
+  style: SiteStyleSpec;
+}) {
   const t = typography(style);
   const person = (item: Item) => (
     <>
@@ -394,53 +535,142 @@ function Party({ items, style }: { items: Item[]; style: SiteStyleSpec }) {
       )}
     </>
   );
+  const portraitFocus = (photo: SitePhoto) => photo.focus || DEFAULT_FOCUS.portrait;
+
   switch (style.layout.party) {
     case "rule-grid":
       return (
         <ul className={cn("mx-auto grid gap-x-10 sm:grid-cols-2", t.width)}>
-          {items.map((i) => (
-            <li key={i.id} className="border-t border-line py-6">
-              {person(i)}
-            </li>
-          ))}
+          {items.map((i) => {
+            const photo = photos.get(i.id);
+            return (
+              <li key={i.id} className="border-t border-line py-6">
+                {photo ? (
+                  <div className="flex items-start gap-4">
+                    <div className="size-20 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-line bg-sunken">
+                      <SitePhotoImg
+                        photo={photo}
+                        alt={photo.alt?.trim() ?? ""}
+                        focusOverride={portraitFocus(photo)}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">{person(i)}</div>
+                  </div>
+                ) : (
+                  person(i)
+                )}
+              </li>
+            );
+          })}
         </ul>
       );
     case "soft-grid":
       return (
         <ul className={cn("mx-auto grid gap-4 sm:grid-cols-2", t.width)}>
-          {items.map((i) => (
-            <li key={i.id} className="rounded-[var(--radius-card)] bg-surface p-7 text-center">
-              {person(i)}
-            </li>
-          ))}
+          {items.map((i) => {
+            const photo = photos.get(i.id);
+            return (
+              <li key={i.id} className="rounded-[var(--radius-card)] bg-surface p-7 text-center">
+                {photo && (
+                  <div className="mx-auto mb-4 size-24 overflow-hidden rounded-full border-2 border-canvas bg-sunken ring-1 ring-line-strong sm:size-28">
+                    <SitePhotoImg
+                      photo={photo}
+                      alt={photo.alt?.trim() ?? ""}
+                      focusOverride={portraitFocus(photo)}
+                    />
+                  </div>
+                )}
+                {person(i)}
+              </li>
+            );
+          })}
         </ul>
       );
     case "editorial-list":
       return (
         <ul className={cn("mx-auto", t.width)}>
-          {items.map((i) => (
-            <li key={i.id} className="border-t border-ink py-7">
-              {person(i)}
-            </li>
-          ))}
+          {items.map((i) => {
+            const photo = photos.get(i.id);
+            return (
+              <li key={i.id} className="border-t border-ink py-7">
+                {photo ? (
+                  <div className="flex items-start gap-4 sm:gap-7">
+                    <div className="aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-[var(--radius-card)] bg-sunken sm:w-28">
+                      <SitePhotoImg
+                        photo={photo}
+                        alt={photo.alt?.trim() ?? ""}
+                        focusOverride={portraitFocus(photo)}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">{person(i)}</div>
+                  </div>
+                ) : (
+                  person(i)
+                )}
+              </li>
+            );
+          })}
         </ul>
       );
     case "centered-list":
       return (
         <ul className={cn("mx-auto space-y-10 text-center", t.width)}>
-          {items.map((i) => (
-            <li key={i.id}>{person(i)}</li>
-          ))}
+          {items.map((i) => {
+            const photo = photos.get(i.id);
+            return (
+              <li key={i.id}>
+                {photo && (
+                  <div className="mx-auto mb-4 size-20 overflow-hidden rounded-none border border-line bg-sunken">
+                    <SitePhotoImg
+                      photo={photo}
+                      alt={photo.alt?.trim() ?? ""}
+                      focusOverride={portraitFocus(photo)}
+                    />
+                  </div>
+                )}
+                {person(i)}
+              </li>
+            );
+          })}
         </ul>
       );
     default:
       return (
         <ul className={cn("mx-auto grid gap-4 sm:grid-cols-2", t.width)}>
-          {items.map((i) => (
-            <li key={i.id} className="rounded-[var(--radius-card)] border border-line bg-surface p-6 text-left">
-              {person(i)}
-            </li>
-          ))}
+          {items.map((i) => {
+            const photo = photos.get(i.id);
+            return (
+              <li
+                key={i.id}
+                className="rounded-[var(--radius-card)] border border-line bg-surface p-6 text-left"
+              >
+                {photo ? (
+                  <>
+                    <div className="flex items-center gap-4">
+                      <div className="aspect-square size-20 shrink-0 overflow-hidden rounded-full bg-sunken ring-1 ring-line ring-offset-2 ring-offset-surface sm:size-24">
+                        <SitePhotoImg
+                          photo={photo}
+                          alt={photo.alt?.trim() ?? ""}
+                          focusOverride={portraitFocus(photo)}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className={t.itemHeading}>{i.title}</h2>
+                        {i.subtitle && <p className={cn("mt-1", eyebrow)}>{i.subtitle}</p>}
+                      </div>
+                    </div>
+                    {i.body && (
+                      <div className="mt-4 text-sm leading-relaxed text-ink-muted">
+                        <TextBlock text={i.body} />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  person(i)
+                )}
+              </li>
+            );
+          })}
         </ul>
       );
   }

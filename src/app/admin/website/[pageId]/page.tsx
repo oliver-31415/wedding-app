@@ -4,11 +4,14 @@ import { notFound } from "next/navigation";
 import { deletePageAction } from "@/app/admin/website/actions";
 import { PageItemsEditor } from "@/components/admin/website/page-items-editor";
 import { PageSettingsForm } from "@/components/admin/website/page-settings-form";
+import { CoverPhotoCard, GalleryEditor } from "@/components/admin/website/photo-editor";
 import { BackLink, Badge, buttonClass, Card, CardBody, CardHeader, ConfirmButton, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { requireHost } from "@/lib/auth";
 import { formatDateLong } from "@/lib/dates";
 import { PAGE_TYPE_META, pageUrl, VISIBILITY_META } from "@/lib/pages";
+import { getCoverPhoto, getGalleryPhotos, getItemPhotos, photosGoToo } from "@/lib/photos";
+import { pageTakesItemPhotos, type SitePhoto } from "@/lib/photos-shared";
 
 export default async function WebsitePageEditor({
   params,
@@ -58,6 +61,13 @@ export default async function WebsitePageEditor({
       : Promise.resolve(0),
   ]);
 
+  const [coverPhoto, itemPhotos, galleryPhotos] = await Promise.all([
+    page.type === "home" ? getCoverPhoto(wedding.id) : null,
+    pageTakesItemPhotos(page.type) ? getItemPhotos(wedding.id, page.id) : new Map<string, SitePhoto>(),
+    page.type === "photos" ? getGalleryPhotos(wedding.id, page.id) : [],
+  ]);
+  const photoCount = (coverPhoto ? 1 : 0) + itemPhotos.size + galleryPhotos.length;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -85,9 +95,12 @@ export default async function WebsitePageEditor({
               <input type="hidden" name="id" value={page.id} />
               <input type="hidden" name="redirectTo" value="list" />
               <ConfirmButton
-                confirm={`Delete "${page.title}"?${
-                  meta.hasItems ? " All entries on this page will be deleted too." : ""
-                }`}
+                confirm={`Delete "${page.title}"?`}
+                detail={
+                  meta.hasItems || photoCount
+                    ? `${meta.hasItems ? "All entries on this page will be deleted too." : ""}${photosGoToo(photoCount)}`.trim()
+                    : undefined
+                }
               >
                 Delete page
               </ConfirmButton>
@@ -215,8 +228,17 @@ export default async function WebsitePageEditor({
         </Card>
       )}
 
+      {page.type === "home" && <CoverPhotoCard photo={coverPhoto} />}
+
+      {page.type === "photos" && <GalleryEditor pageId={page.id} photos={galleryPhotos} />}
+
       {(page.type === "story" || page.type === "party" || page.type === "faq") && (
-        <PageItemsEditor pageId={page.id} pageType={page.type} items={items} />
+        <PageItemsEditor
+          pageId={page.id}
+          pageType={page.type}
+          items={items}
+          photos={Object.fromEntries(itemPhotos)}
+        />
       )}
     </div>
   );

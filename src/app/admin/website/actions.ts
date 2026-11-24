@@ -7,6 +7,7 @@ import { PAGE_VISIBILITY, type PageType, type PageVisibility } from "@/db/schema
 import { requireHost } from "@/lib/auth";
 import { type ActionState, fail, moveId, ok, readAudience, text } from "@/lib/forms";
 import { newId } from "@/lib/ids";
+import { deleteCoverRow, deletePhotoFiles, photoFilesFor } from "@/lib/photos";
 import { revalidateWedding } from "@/lib/revalidate";
 import {
   canAddPageType,
@@ -114,7 +115,23 @@ export async function deletePageAction(formData: FormData): Promise<void> {
   const redirectTo = text(formData, "redirectTo");
   if (!id) return;
 
-  await db.delete(schema.pages).where(and(eq(schema.pages.id, id), eq(schema.pages.weddingId, wedding.id)));
+  // Photo rows go with the page (cascade; the cover with the Home page) and
+  // their files are deleted once that has committed.
+  const photoFiles = await db.transaction(
+    async (tx) => {
+      const [page] = await tx
+        .select({ type: schema.pages.type })
+        .from(schema.pages)
+        .where(and(eq(schema.pages.id, id), eq(schema.pages.weddingId, wedding.id)));
+      if (!page) return [];
+      const files = await photoFilesFor(tx, wedding.id, { pageId: id, pageType: page.type });
+      if (page.type === "home") await deleteCoverRow(tx, wedding.id);
+      await tx.delete(schema.pages).where(and(eq(schema.pages.id, id), eq(schema.pages.weddingId, wedding.id)));
+      return files;
+    },
+    { behavior: "immediate" },
+  );
+  await deletePhotoFiles(photoFiles);
 
   const remaining = await db
     .select({ id: schema.pages.id })
@@ -301,15 +318,24 @@ export async function deletePageItemAction(formData: FormData): Promise<void> {
   const itemId = text(formData, "itemId");
   if (!pageId || !itemId) return;
 
-  await db
-    .delete(schema.pageItems)
-    .where(
-      and(
-        eq(schema.pageItems.id, itemId),
-        eq(schema.pageItems.pageId, pageId),
-        eq(schema.pageItems.weddingId, wedding.id),
-      ),
-    );
+  const photoFiles = await db.transaction(
+    async (tx) => {
+      const files = await photoFilesFor(tx, wedding.id, { pageItemIds: [itemId] });
+      const deleted = await tx
+        .delete(schema.pageItems)
+        .where(
+          and(
+            eq(schema.pageItems.id, itemId),
+            eq(schema.pageItems.pageId, pageId),
+            eq(schema.pageItems.weddingId, wedding.id),
+          ),
+        )
+        .returning({ id: schema.pageItems.id });
+      return deleted.length ? files : [];
+    },
+    { behavior: "immediate" },
+  );
+  await deletePhotoFiles(photoFiles);
 
   const remaining = await db
     .select({ id: schema.pageItems.id })

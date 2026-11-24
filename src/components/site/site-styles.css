@@ -147,3 +147,54 @@
 [data-site-style][data-style="modern"] .font-serif {
   word-spacing: 0.12em;
 }
+
+/* ------------------------------------------------------------------ Photos */
+
+[data-site-style] [data-minimal-gallery] {
+  --minimal-photo-max-h: 65vh;
+}
+
+@media (min-width: 40rem) {
+  [data-site-style] [data-minimal-gallery] {
+    --minimal-photo-max-h: 70vh;
+  }
+}
+
+html:has(dialog[data-photo-lightbox][open]) {
+  overflow: hidden;
+}
+
+[data-site-style] dialog[data-photo-lightbox] :focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* Keep lightbox captions centred even in styles (Editorial) that left-align main .text-center. */
+[data-site-style] dialog[data-photo-lightbox] .text-center {
+  text-align: center;
+}
+
+dialog[data-photo-lightbox][open] {
+  animation: photo-lightbox-in 160ms ease-out;
+}
+
+dialog[data-photo-lightbox][open]::backdrop {
+  animation: photo-lightbox-in 160ms ease-out;
+}
+
+@keyframes photo-lightbox-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog[data-photo-lightbox][open],
+  dialog[data-photo-lightbox][open]::backdrop {
+    animation: none;
+  }
+}
+

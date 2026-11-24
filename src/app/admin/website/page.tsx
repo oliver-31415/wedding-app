@@ -18,6 +18,7 @@ import {
 import { db, schema } from "@/db";
 import { requireHost } from "@/lib/auth";
 import { addablePageTypes, PAGE_TYPE_META, pageUrl, VISIBILITY_META } from "@/lib/pages";
+import { photoCountsByPage, photosGoToo } from "@/lib/photos";
 import { sitePath } from "@/lib/site-paths";
 
 const WEBSITE_SUBNAV = [
@@ -34,6 +35,7 @@ export default async function WebsitePagesPage() {
     .where(eq(schema.pages.weddingId, wedding.id))
     .orderBy(asc(schema.pages.position), asc(schema.pages.createdAt));
 
+  const photoCounts = await photoCountsByPage(wedding.id);
   const addable = addablePageTypes(pages);
   const needsPasswordWarning =
     !wedding.sitePassword && pages.some((p) => p.visibility === "password");
@@ -127,9 +129,12 @@ export default async function WebsitePagesPage() {
                     <form action={deletePageAction}>
                       <input type="hidden" name="id" value={page.id} />
                       <ConfirmButton
-                        confirm={`Delete "${page.title}"?${
-                          meta.hasItems ? " All entries on this page will be deleted too." : ""
-                        }`}
+                        confirm={`Delete "${page.title}"?`}
+                        detail={
+                          meta.hasItems || photoCounts.get(page.id)
+                            ? `${meta.hasItems ? "All entries on this page will be deleted too." : ""}${photosGoToo(photoCounts.get(page.id) ?? 0)}`.trim()
+                            : undefined
+                        }
                       >
                         Delete
                       </ConfirmButton>

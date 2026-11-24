@@ -7,6 +7,7 @@ import {
   reorderPageItemAction,
   updatePageItemAction,
 } from "@/app/admin/website/actions";
+import { ItemPhotoControl } from "@/components/admin/website/photo-editor";
 import {
   Button,
   Card,
@@ -22,6 +23,7 @@ import {
   Textarea,
   TextBlock,
 } from "@/components/ui";
+import { PHOTO_CAPS, type SitePhoto } from "@/lib/photos-shared";
 
 export type PageItemRow = {
   id: string;
@@ -98,12 +100,16 @@ function ItemRow({
   pageId,
   pageType,
   item,
+  photo,
+  photoCapReached,
   isFirst,
   isLast,
 }: {
   pageId: string;
   pageType: ItemPageType;
   item: PageItemRow;
+  photo: SitePhoto | null;
+  photoCapReached: boolean;
   isFirst: boolean;
   isLast: boolean;
 }) {
@@ -181,6 +187,18 @@ function ItemRow({
         <p className="font-medium text-ink">{item.title}</p>
         {item.subtitle && <p className="text-sm text-brand">{item.subtitle}</p>}
         {item.body && <TextBlock text={item.body} className="text-sm text-ink-muted" />}
+        {pageType !== "faq" && (
+          <div className="pt-3">
+            <ItemPhotoControl
+              key={photo?.id ?? "none"}
+              itemId={item.id}
+              itemTitle={item.title}
+              pageType={pageType}
+              photo={photo}
+              capReached={photoCapReached}
+            />
+          </div>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <ReorderButtons
@@ -196,7 +214,12 @@ function ItemRow({
         <form action={deletePageItemAction}>
           <input type="hidden" name="pageId" value={pageId} />
           <input type="hidden" name="itemId" value={item.id} />
-          <ConfirmButton confirm={copy.deleteConfirm(item.title)}>Delete</ConfirmButton>
+          <ConfirmButton
+            confirm={copy.deleteConfirm(item.title)}
+            detail={photo ? `Its ${pageType === "party" ? "portrait" : "photo"} will be deleted too.` : undefined}
+          >
+            Delete
+          </ConfirmButton>
         </form>
       </div>
     </li>
@@ -207,12 +230,16 @@ export function PageItemsEditor({
   pageId,
   pageType,
   items,
+  photos,
 }: {
   pageId: string;
   pageType: ItemPageType;
   items: PageItemRow[];
+  /** Story milestone / wedding-party photos by item id. */
+  photos: Record<string, SitePhoto>;
 }) {
   const copy = ITEM_COPY[pageType];
+  const photoCapReached = pageType !== "faq" && Object.keys(photos).length >= PHOTO_CAPS[pageType];
   const [addState, addAction] = useActionState(addPageItemAction, null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -225,7 +252,16 @@ export function PageItemsEditor({
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader title={copy.sectionTitle} description={copy.sectionDescription} />
+        <CardHeader
+          title={copy.sectionTitle}
+          description={
+            pageType === "faq"
+              ? copy.sectionDescription
+              : `${copy.sectionDescription} ${Object.keys(photos).length} of ${PHOTO_CAPS[pageType]} ${
+                  pageType === "party" ? "portraits" : "photos"
+                } used.`
+          }
+        />
         {items.length === 0 ? (
           <CardBody>
             <EmptyState title={copy.emptyTitle} body={copy.emptyBody} />
@@ -238,6 +274,8 @@ export function PageItemsEditor({
                 pageId={pageId}
                 pageType={pageType}
                 item={item}
+                photo={photos[item.id] ?? null}
+                photoCapReached={photoCapReached}
                 isFirst={i === 0}
                 isLast={i === items.length - 1}
               />

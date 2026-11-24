@@ -14,9 +14,17 @@ cleverness: every screen should look and behave like the others.
    no placeholders like "TBD", no sample text, no "Our story goes here".
    Admin forms may use `placeholder=` hints, but never pre-fill values.
 2. **Out of scope** (do not build, do not link to): travel, where to stay /
-   hotels, photos, galleries, video, a shop, syncing other registries, printed
-   stationery, SMS/WhatsApp, seating charts, multiple languages, custom CSS,
-   a mobile app, AI writing help, announcement banners, countdowns.
+   hotels, video (never served, in any form — no GIFs either), albums, guest
+   photo uploads, a shop, syncing other registries, printed stationery,
+   SMS/WhatsApp, seating charts, multiple languages, custom CSS, a mobile app,
+   AI writing help, announcement banners, countdowns.
+   **Photos are curated, not an album:** one cover photo (Home page), one per
+   story milestone (up to 8) and wedding-party member (up to 12), and an
+   opt-in Photos page of up to 12. Caps live in `src/lib/photos-shared.ts`,
+   writes go through `src/lib/photos.ts` (which deletes files with rows), and
+   the agreed per-style design is in the photo components under
+   `src/components/site/photos/`. Uploads are shrunk in the browser
+   (`src/lib/client-image.ts`) and camera metadata (GPS) is stripped on save.
 3. **One wedding per couple.** Hosts are the owner plus co-hosts.
 4. **Money never passes through the app.** Cash funds show the couple's own
    payment details; guests record a pledge; the host ticks "received".
