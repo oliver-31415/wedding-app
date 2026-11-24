@@ -7,10 +7,12 @@ import { db, schema } from "@/db";
 import { requireHost } from "@/lib/auth";
 import { bool, fail, moveId, ok, text, type ActionState } from "@/lib/forms";
 import {
+  centsToInputValue,
   parseImageMode,
   resolveImagePlan,
   validateCashFundInput,
   validateGiftItemInput,
+  validateHttpUrl,
   validateOfflineGiftInput,
 } from "@/lib/gift-admin/helpers";
 import { newId } from "@/lib/ids";
@@ -19,10 +21,48 @@ import {
   deleteUpload,
   importImageFromProductPage,
   importImageFromUrl,
+  readProductPage,
   saveUploadedImage,
 } from "@/lib/uploads";
 
 // ---------------------------------------------------------------- gift items
+
+export type GiftLinkLookup =
+  | {
+      ok: true;
+      /** The link as pasted (trimmed). */
+      url: string;
+      name: string | null;
+      storeName: string | null;
+      /** Ready for the price input, e.g. "539". */
+      price: string | null;
+      /** Why a price on the page wasn't used, if one was skipped. */
+      priceNote: string | null;
+      /** The shop's picture; downloaded and stored only when the gift is saved. */
+      imageUrl: string | null;
+    }
+  | { ok: false; error: string };
+
+/** "Fill in from a link": reads the product page and returns what it found. */
+export async function lookupGiftLinkAction(rawUrl: string): Promise<GiftLinkLookup> {
+  const { wedding } = await requireHost();
+  const checked = validateHttpUrl(rawUrl);
+  if (!checked.ok) return { ok: false, error: checked.error };
+  if (!checked.value) return { ok: false, error: "Paste a link to the product first." };
+  const page = await readProductPage(checked.value);
+  if (!page.ok) return { ok: false, error: page.error };
+  const d = page.details;
+  const otherCurrency = d.priceCents && d.currency && d.currency !== wedding.currency ? d.currency : null;
+  return {
+    ok: true,
+    url: checked.value,
+    name: d.name,
+    storeName: d.storeName,
+    price: d.priceCents && !otherCurrency ? centsToInputValue(d.priceCents) : null,
+    priceNote: otherCurrency ? `The shop lists its price in ${otherCurrency}, so it wasn't filled in.` : null,
+    imageUrl: d.imageUrl,
+  };
+}
 
 export async function saveGiftItemAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { wedding } = await requireHost();

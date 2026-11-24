@@ -3,6 +3,7 @@ import { lookup } from "node:dns/promises";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { newId } from "@/lib/ids";
+import { extractProductDetails, type ProductDetails } from "@/lib/gift-admin/product-page";
 import { MAX_IMAGE_BYTES } from "@/lib/photos-shared";
 import {
   detectImageType,
@@ -22,7 +23,8 @@ import {
  */
 
 const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? "./data/uploads");
-const MAX_HTML_BYTES = 1024 * 1024;
+// Product pages can put their product data well down the page.
+const MAX_HTML_BYTES = 3 * 1024 * 1024;
 const EXT: Record<ImageType, string> = { jpeg: "jpg", png: "png", webp: "webp", gif: "gif" };
 export const CONTENT_TYPE: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
 export const UPLOAD_FILE_RE = /^[A-Za-z0-9_-]{8,40}\.(jpg|png|webp|gif)$/;
@@ -70,15 +72,29 @@ export async function importImageFromUrl(url: string): Promise<ImageResult> {
 }
 
 /**
- * Finds the product picture on a shop page (its og:image / twitter:image)
- * and stores a copy. Returns an error if the shop doesn't publish one.
+ * Reads a shop's product page: name, price, picture and store name (see
+ * src/lib/gift-admin/product-page.ts). Nothing is stored.
+ */
+export async function readProductPage(
+  pageUrl: string,
+): Promise<{ ok: true; details: ProductDetails; finalUrl: string } | { ok: false; error: string }> {
+  const page = await safeFetch(pageUrl, MAX_HTML_BYTES, { page: true });
+  if (!page.ok) return page;
+  const html = new TextDecoder().decode(page.body);
+  const details = extractProductDetails(html, page.finalUrl);
+  details.imageUrl ??= findImageInHtml(html, page.finalUrl);
+  return { ok: true, details, finalUrl: page.finalUrl };
+}
+
+/**
+ * Finds the product picture on a shop page and stores a copy. Returns an
+ * error if the shop doesn't publish one.
  */
 export async function importImageFromProductPage(pageUrl: string): Promise<ImageResult> {
-  const page = await safeFetch(pageUrl, MAX_HTML_BYTES);
-  if (!page.ok) return { ok: false, error: page.error };
-  const found = findImageInHtml(new TextDecoder().decode(page.body), page.finalUrl);
-  if (!found) return { ok: false, error: "We couldn't find a picture on that page. Try uploading one instead." };
-  return importImageFromUrl(found);
+  const page = await readProductPage(pageUrl);
+  if (!page.ok) return page;
+  if (!page.details.imageUrl) return { ok: false, error: "We couldn't find a picture on that page. Try uploading one instead." };
+  return importImageFromUrl(page.details.imageUrl);
 }
 
 export async function readUpload(file: string): Promise<Buffer | null> {
@@ -106,7 +122,7 @@ type FetchResult = { ok: true; body: Uint8Array; finalUrl: string } | { ok: fals
  * network: http(s) only, every hop's host must resolve to public addresses,
  * at most 3 redirects, 8 s timeout, body size capped.
  */
-async function safeFetch(url: string, maxBytes: number): Promise<FetchResult> {
+async function safeFetch(url: string, maxBytes: number, opts: { page?: boolean } = {}): Promise<FetchResult> {
   let current = url;
   for (let hop = 0; hop < 4; hop++) {
     let parsed: URL;
@@ -130,7 +146,11 @@ async function safeFetch(url: string, maxBytes: number): Promise<FetchResult> {
       res = await fetch(parsed, {
         redirect: "manual",
         signal: AbortSignal.timeout(8000),
-        headers: { "user-agent": "Mozilla/5.0 (compatible; WeddingGiftList/1.0)", accept: "text/html,image/*;q=0.9,*/*;q=0.5" },
+        headers: {
+          "user-agent": "Mozilla/5.0 (compatible; WeddingGiftList/1.0)",
+          accept: opts.page ? "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5" : "image/*,*/*;q=0.5",
+          "accept-language": "en-AU,en;q=0.9",
+        },
       });
     } catch {
       return { ok: false, error: "We couldn't reach that website." };
@@ -152,7 +172,7 @@ async function safeFetch(url: string, maxBytes: number): Promise<FetchResult> {
       if (total > maxBytes) {
         await reader.cancel();
         // Pages: the <head> is what matters, so a truncated page is fine. Images: reject.
-        if (maxBytes === MAX_HTML_BYTES) break;
+        if (opts.page) break;
         return { ok: false, error: "That file is too large." };
       }
       chunks.push(value);

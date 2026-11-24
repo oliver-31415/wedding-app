@@ -9,7 +9,7 @@ export default async function NewGiftItemPage() {
     <div>
       <PageHeader
         title="Add gift"
-        description="Add an item from any store. Paste a link to suggest the store name automatically."
+        description="Add an item from any store. Paste a product link to fill in the details and picture."
         back={
           <BackLink href="/admin/gifts">Gifts</BackLink>
         }

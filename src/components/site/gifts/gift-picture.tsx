@@ -41,6 +41,8 @@ export function GiftPicture({
         src={src}
         alt={alt}
         loading="lazy"
+        // Previews of a shop's picture load from the shop; don't tell it where from.
+        referrerPolicy="no-referrer"
         className={cn("h-full w-full object-contain", cfg.pad, muted && "opacity-60 grayscale-[40%]")}
       />
     </div>

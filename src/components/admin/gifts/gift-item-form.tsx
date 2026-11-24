@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { saveGiftItemAction } from "@/app/admin/gifts/actions";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { lookupGiftLinkAction, saveGiftItemAction } from "@/app/admin/gifts/actions";
 import {
   Button,
   Checkbox,
@@ -69,6 +69,8 @@ export function GiftItemForm({
   const [clientImageError, setClientImageError] = useState<string | null>(null);
   const [dismissedServerImageError, setDismissedServerImageError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [looking, startLookup] = useTransition();
+  const [lookupMessage, setLookupMessage] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
 
   useEffect(() => {
     if (!previewObjectUrl) return;
@@ -104,24 +106,79 @@ export function GiftItemForm({
 
   const suggestedStore = !storeName.trim() ? suggestStoreFromUrl(url) : null;
   const currentSavedUrl = item?.imageUrl ?? null;
+  const linkPreview = imageMode === "url" && /^https?:\/\/\S+$/i.test(imageLink.trim()) ? imageLink.trim() : null;
   const previewSrc =
     imageMode === "upload" && previewObjectUrl
       ? previewObjectUrl
-      : imageMode !== "remove"
-        ? currentSavedUrl
-        : null;
+      : linkPreview
+        ? linkPreview
+        : imageMode !== "remove" && imageMode !== "url"
+          ? currentSavedUrl
+          : null;
   const imageError =
     clientImageError ?? (dismissedServerImageError ? undefined : state?.errors?.image);
 
+  /**
+   * Reads the product page and fills in whatever is still empty: name, store,
+   * price and picture (fetched and stored when the gift is saved).
+   */
+  function fillFromLink(link: string) {
+    const target = link.trim();
+    if (!target) return;
+    setLookupMessage(null);
+    startLookup(async () => {
+      const res = await lookupGiftLinkAction(target).catch(() => null);
+      if (!res?.ok) {
+        // Still useful: the store name from the address.
+        const host = suggestStoreFromUrl(target);
+        if (host && !storeName.trim()) {
+          setStoreName(host);
+          setSuggestedFromPaste(true);
+        }
+        setLookupMessage({
+          tone: "bad",
+          text: `${res?.error ?? "We couldn't read that page."} You can fill in the details yourself.`,
+        });
+        return;
+      }
+      const filled: string[] = [];
+      if (res.name && !name.trim()) {
+        setName(res.name);
+        filled.push("name");
+      }
+      if (res.storeName && !storeName.trim()) {
+        setStoreName(res.storeName);
+        setSuggestedFromPaste(false);
+        filled.push("store");
+      }
+      if (res.price && !price.trim()) {
+        setPrice(res.price);
+        filled.push("price");
+      }
+      const hasPicture = !!selectedFile || (!!currentSavedUrl && imageMode !== "remove");
+      if (res.imageUrl && !hasPicture) {
+        setActiveSource("url");
+        setImageMode("url");
+        setImageLink(res.imageUrl);
+        setClientImageError(null);
+        setDismissedServerImageError(true);
+        filled.push("picture");
+      }
+      const list = filled.length > 1 ? `${filled.slice(0, -1).join(", ")} and ${filled.at(-1)}` : filled[0];
+      setLookupMessage(
+        filled.length
+          ? { tone: "good", text: `Filled in the ${list} from the shop's page. Check them before saving.${res.priceNote ? ` ${res.priceNote}` : ""}` }
+          : {
+              tone: "bad",
+              text: res.priceNote ?? "Nothing new to fill in: we couldn't find more details, or those fields already have something in them.",
+            },
+      );
+    });
+  }
+
   function handleUrlPaste(e: React.ClipboardEvent<HTMLInputElement>) {
     const pasted = e.clipboardData.getData("text").trim();
-    if (!storeName.trim() && pasted) {
-      const host = suggestStoreFromUrl(pasted);
-      if (host) {
-        setStoreName(host);
-        setSuggestedFromPaste(true);
-      }
-    }
+    if (/^https?:\/\//i.test(pasted)) fillFromLink(pasted);
   }
 
   function selectSource(next: PictureSource) {
@@ -183,6 +240,39 @@ export function GiftItemForm({
       <input type="hidden" name="imageMode" value={imageMode} />
       <FormMessage state={state} />
 
+      <Field
+        label="Store link"
+        htmlFor="url"
+        optional
+        hint="Paste a product link (https://…) and we'll fill in the name, price and picture from the shop's page. Guests can use it to view or buy the gift."
+        error={state?.errors?.url}
+      >
+        <div className="flex flex-wrap gap-2">
+          <Input
+            id="url"
+            name="url"
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onPaste={handleUrlPaste}
+            maxLength={MAX_URL}
+            placeholder="https://www.davidjones.com/..."
+            invalid={!!state?.errors?.url}
+            className="min-w-0 flex-1"
+          />
+          <Button
+            variant="secondary"
+            onClick={() => fillFromLink(url)}
+            disabled={looking || !/^https?:\/\/\S+$/i.test(url.trim())}
+          >
+            {looking ? "Reading page…" : "Fill in from link"}
+          </Button>
+        </div>
+      </Field>
+      <p role="status" aria-live="polite" className={cn("-mt-2 text-sm", lookupMessage?.tone === "bad" ? "text-warn" : "text-good")}>
+        {looking ? "Reading the shop's page…" : lookupMessage?.text}
+      </p>
+
       <Field label="Item name" htmlFor="name" error={state?.errors?.name}>
         <Input
           id="name"
@@ -193,26 +283,6 @@ export function GiftItemForm({
           placeholder="e.g. Le Creuset casserole dish"
           required
           invalid={!!state?.errors?.name}
-        />
-      </Field>
-
-      <Field
-        label="Store link"
-        htmlFor="url"
-        optional
-        hint="Paste a product link starting with https:// so guests can view or buy it online."
-        error={state?.errors?.url}
-      >
-        <Input
-          id="url"
-          name="url"
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onPaste={handleUrlPaste}
-          maxLength={MAX_URL}
-          placeholder="https://www.davidjones.com/..."
-          invalid={!!state?.errors?.url}
         />
       </Field>
 
@@ -278,14 +348,16 @@ export function GiftItemForm({
             <div className="min-w-0 flex-1 space-y-2">
               <div className="space-y-0.5 text-sm">
                 <p className="truncate font-medium text-ink">
-                  {selectedFile ? selectedFile.name : "Current picture"}
+                  {selectedFile ? selectedFile.name : linkPreview ? "Picture from the link" : "Current picture"}
                 </p>
                 <p className="text-ink-muted">
                   {selectedFile
                     ? "Preview shown — will upload when you save."
-                    : imageMode === "shop" || imageMode === "url"
-                      ? "Will be replaced when you save."
-                      : "Shown on your guest gift list."}
+                    : linkPreview
+                      ? "We'll save our own copy when you save this gift."
+                      : imageMode === "shop"
+                        ? "Will be replaced when you save."
+                        : "Shown on your guest gift list."}
                 </p>
               </div>
               <Button size="sm" variant="secondary" onClick={handleRemovePicture}>
