@@ -1,0 +1,149 @@
+/*
+ * Scoped guest-site styling for the 5 design presets.
+ * Everything is scoped strictly under [data-site-style] so admin screens are
+ * completely unaffected. This lets RSVP and Gift bodies (which consume the
+ * shared Tailwind design tokens) adapt automatically to every preset.
+ */
+
+[data-site-style] {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  overflow-x: clip;
+}
+
+[data-site-style] :focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Guarantee accessible foreground contrast even for custom light hex accents. */
+[data-site-style] .bg-accent.text-white {
+  color: var(--color-accent-ink);
+}
+
+/* ------------------------------------------------------------------ Modern */
+
+[data-site-style][data-style="modern"] main h2.font-serif,
+[data-site-style][data-style="modern"] main h3.font-serif,
+[data-site-style][data-style="modern"] main label.font-serif {
+  font-weight: 600;
+  /* Plus Jakarta Sans has narrow word spaces; keep tracking gentle and open the spaces up. */
+  letter-spacing: -0.01em;
+  word-spacing: 0.12em;
+}
+
+[data-site-style][data-style="modern"] main section.border-line.bg-surface,
+[data-site-style][data-style="modern"] main article.border-line.bg-surface {
+  background-color: transparent;
+  border-width: 1px 0 0 0;
+  border-color: var(--color-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-site-style][data-style="modern"] main article.border-line.bg-surface {
+  padding-inline: 0;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+[data-site-style][data-style="modern"] main section.border-line.bg-surface > div {
+  padding-inline: 0;
+}
+
+[data-site-style][data-style="modern"] main :is(button, a, input, textarea, label).rounded-xl,
+[data-site-style][data-style="modern"] main :is(button, a, input, textarea, label).rounded-lg {
+  border-radius: var(--radius-control);
+}
+
+[data-site-style][data-style="modern"] main .mx-auto.text-center {
+  margin-inline: 0;
+  text-align: left;
+}
+
+[data-site-style][data-style="modern"] main .mx-auto.max-w-2xl,
+[data-site-style][data-style="modern"] main .mx-auto.max-w-xl {
+  margin-inline: 0;
+}
+
+/* ------------------------------------------------------------------ Garden */
+
+[data-site-style][data-style="garden"] main section.border-line.bg-surface,
+[data-site-style][data-style="garden"] main article.border-line.bg-surface {
+  border-radius: var(--radius-card);
+  border-color: color-mix(in srgb, var(--color-line) 75%, transparent);
+  box-shadow: 0 6px 24px -10px color-mix(in srgb, var(--color-ink) 8%, transparent);
+}
+
+[data-site-style][data-style="garden"] main :is(button, a).bg-accent {
+  border-radius: 9999px;
+}
+
+[data-site-style][data-style="garden"] main :is(input, textarea) {
+  border-radius: var(--radius-control);
+}
+
+/* --------------------------------------------------------------- Editorial */
+
+[data-site-style][data-style="editorial"] main section.border-line.bg-surface,
+[data-site-style][data-style="editorial"] main article.border-line.bg-surface {
+  border-radius: var(--radius-card);
+  border-color: var(--color-line);
+  border-top: 2px solid var(--color-ink);
+  box-shadow: none;
+}
+
+[data-site-style][data-style="editorial"] main :is(button, a, input, textarea, label).rounded-xl,
+[data-site-style][data-style="editorial"] main :is(button, a, input, textarea, label).rounded-lg {
+  border-radius: var(--radius-control);
+}
+
+[data-site-style][data-style="editorial"] main .mx-auto.max-w-2xl,
+[data-site-style][data-style="editorial"] main .mx-auto.max-w-xl {
+  margin-inline: 0;
+}
+
+[data-site-style][data-style="editorial"] main .text-center {
+  text-align: left;
+}
+
+/* ----------------------------------------------------------------- Minimal */
+
+[data-site-style][data-style="minimal"] main section.border-line.bg-surface,
+[data-site-style][data-style="minimal"] main article.border-line.bg-surface {
+  background-color: transparent;
+  border-width: 1px 0 0 0;
+  border-color: var(--color-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-site-style][data-style="minimal"] main article.border-line.bg-surface {
+  padding-inline: 0;
+  padding-top: 1.75rem;
+  padding-bottom: 1.75rem;
+}
+
+[data-site-style][data-style="minimal"] main section.border-line.bg-surface > div {
+  padding-inline: 0;
+}
+
+[data-site-style][data-style="minimal"] main :is(button, a, input, textarea, label, div).rounded-xl,
+[data-site-style][data-style="minimal"] main :is(button, a, input, textarea, label, div).rounded-lg {
+  border-radius: 0;
+}
+
+[data-site-style][data-style="minimal"] main :is(button, a).bg-accent {
+  letter-spacing: 0.05em;
+}
+
+/* Keep gift lists in a calm single column inside Minimal's narrow gallery measure. */
+[data-site-style][data-style="minimal"] main .grid.md\:grid-cols-2 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Modern: all headings in the heading font get the same open word spacing. */
+[data-site-style][data-style="modern"] .font-serif {
+  word-spacing: 0.12em;
+}

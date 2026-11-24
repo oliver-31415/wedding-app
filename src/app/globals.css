@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Admin screens use these names only (bg-surface, text-ink-muted,
+ * border-line, bg-brand …) — never raw palette colours — so the whole admin
+ * looks like one product. The guest site overrides --color-accent per wedding.
+ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-serif-display), ui-serif, Georgia, serif;
+
+  --color-canvas: #faf8f5;
+  --color-surface: #ffffff;
+  --color-sunken: #f3f0eb;
+  --color-line: #e6e1d9;
+  --color-line-strong: #cfc7bb;
+  /* Borders of interactive controls (inputs, checkboxes, secondary buttons): 3:1 on white. */
+  --color-control: #9d9488;
+
+  --color-ink: #1f1b16;
+  --color-ink-muted: #6b6258;
+  --color-ink-faint: #766d63;
+
+  --color-brand: #7c5c3e;
+  --color-brand-strong: #634831;
+  --color-brand-soft: #f3ebe2;
+
+  --color-accent: #7c5c3e;
+  /* Guest-site extras (the site shell overrides these per style / accent). */
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #f3ebe2;
+  --radius-control: 0.5rem;
+
+  /* Status colours — the same meaning everywhere (RSVP, gifts, delivery). */
+  --color-good: #2f7a4f;
+  --color-good-soft: #e5f2ea;
+  --color-warn: #855309;
+  /* Bars and dots for "awaiting": brighter than the text colour so it reads as amber, not brand brown. */
+  --color-warn-fill: #e0a43a;
+  --color-warn-soft: #fbf0dc;
+  --color-bad: #b33a3a;
+  --color-bad-soft: #f9e5e3;
+  --color-info: #3b6ea8;
+  --color-info-soft: #e5eef8;
+  --color-neutral-soft: #efebe5;
+
+  --radius-card: 0.875rem;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Cormorant's default old-style figures make "12" read as "I 2": use lining figures everywhere. */
+.font-serif {
+  font-variant-numeric: lining-nums;
+}

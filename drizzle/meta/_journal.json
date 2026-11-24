@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1795495197663,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1795496908558,
+      "tag": "0001_review_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795497755387,
+      "tag": "0002_gift_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1795497932541,
+      "tag": "0003_event_guests_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795499575987,
+      "tag": "0004_outbox_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795500220801,
+      "tag": "0005_signup_invites",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795509023633,
+      "tag": "0006_account_emails",
+      "breakpoints": true
+    }
+  ]
+}

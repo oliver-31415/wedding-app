@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `guests_only` integer DEFAULT false NOT NULL;

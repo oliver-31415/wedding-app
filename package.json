@@ -1,0 +1,45 @@
+{
+  "name": "wedding-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.mts",
+    "db:seed": "tsx scripts/seed.mts",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@libsql/client": "0.18.0",
+    "bcryptjs": "3.0.3",
+    "drizzle-orm": "0.45.4",
+    "next": "16.4.6",
+    "nodemailer": "10.4.0",
+    "papaparse": "5.5.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "0.0.1",
+    "zod": "4.3.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/node": "^20",
+    "@types/nodemailer": "8.0.2",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.11",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "playwright": "1.49.1",
+    "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "4.0.16"
+  },
+  "packageManager": "pnpm@12.19.0"
+}

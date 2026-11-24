@@ -1,0 +1,63 @@
+# Every push and pull request: typecheck, lint, test.
+# Pushes to main by an allowed deployer also build the Docker image and
+# publish it to GitHub's container registry; the server picks it up
+# automatically.
+#
+# Who can deploy: the GitHub usernames in the repository variable DEPLOYERS
+# (Settings → Secrets and variables → Actions → Variables), comma-separated,
+# e.g. "oliver-31415,his-brother". If it isn't set, only the repo owner can.
+# Pull requests from forks never deploy, and the repo requires approval
+# before running workflows from outside contributors.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  image:
+    needs: check
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      contains(format(',{0},', vars.DEPLOYERS || github.repository_owner), format(',{0},', github.actor))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            ALLOWED_ORIGINS=wedding.wright-guys.com
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

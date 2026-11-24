@@ -1,0 +1,45 @@
+# TrueNAS SCALE: Apps → Discover Apps → ⋮ → Install via YAML, paste this.
+# Before installing: create the dataset /mnt/POOL/apps/wedding (owned by the
+# "apps" user, uid 568) and replace POOL, SESSION_SECRET and the email values.
+services:
+  wedding:
+    image: ghcr.io/oliver-31415/wedding-app:latest
+    container_name: wedding
+    restart: unless-stopped
+    user: "568:568"
+    ports:
+      - "3080:3000"
+    environment:
+      APP_URL: https://wedding.wright-guys.com
+      # Long random string; keep it secret and don't change it (it signs guest cookies).
+      SESSION_SECRET: REPLACE_WITH_OUTPUT_OF_openssl_rand_-base64_48
+      # Who may create an account without an invite. On this single-wedding
+      # server: the person who sets the wedding up. Everyone else (e.g. their
+      # partner) joins through a co-host invite from Settings → Hosts.
+      ALLOWED_SIGNUP_EMAILS: "groom@example.com"
+      # Only for servers hosting several couples' weddings: site admins who can
+      # invite people to create their own weddings from /site-admin.
+      SUPERUSER_EMAILS: ""
+      # Email over SMTP — used for confirming accounts' email addresses,
+      # password resets, co-host invites, guest invitations and RSVP
+      # confirmations. With Resend: verify wright-guys.com in Resend, create an
+      # API key, and use these settings (the password IS the API key).
+      SMTP_HOST: smtp.resend.com
+      SMTP_PORT: "465"
+      SMTP_USER: resend
+      SMTP_PASS: REPLACE_WITH_RESEND_API_KEY
+      EMAIL_FROM: "Tom & Ana <wedding@wright-guys.com>"
+    volumes:
+      - /mnt/POOL/apps/wedding:/app/data
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  # Pulls the new image whenever main is pushed (checks every 5 minutes) and
+  # restarts the wedding container. Only touches containers labelled above.
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: wedding-watchtower
+    restart: unless-stopped
+    command: --label-enable --cleanup --interval 300
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
