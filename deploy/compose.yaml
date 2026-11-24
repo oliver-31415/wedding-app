@@ -1,0 +1,26 @@
+# Runs the wedding site and keeps it up to date. Lives on the server next to
+# a .env file you create from .env.example — settings and secrets go there,
+# never in git. Start with:  docker compose up -d
+services:
+  wedding:
+    image: ghcr.io/oliver-31415/wedding-app:latest
+    container_name: wedding
+    restart: unless-stopped
+    user: "568:568" # TrueNAS "apps" user; owns ./data
+    env_file: .env
+    ports:
+      - "${WEDDING_PORT:-3080}:3000"
+    volumes:
+      - ./data:/app/data # database + gift pictures
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  # Every 5 minutes: if GitHub has published a new image (a push to main),
+  # pull it and restart the wedding container. Only touches labelled containers.
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: wedding-watchtower
+    restart: unless-stopped
+    command: --label-enable --cleanup --interval 300
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

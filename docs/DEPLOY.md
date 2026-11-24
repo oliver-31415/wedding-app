@@ -33,31 +33,50 @@ in new versions are applied automatically when the container starts.
 
 ## First-time setup on TrueNAS
 
-1. **Dataset.** Create `POOL/apps/wedding` (Datasets → Add Dataset, preset
-   *Apps*). Its owner should be the `apps` user (uid 568).
-2. **Secret.** Generate a session secret on any machine:
-   `openssl rand -base64 48`.
-3. **App.** Apps → Discover Apps → ⋮ → *Install via YAML*. Paste
-   [`deploy/truenas-compose.yaml`](../deploy/truenas-compose.yaml) and fill in:
-   - `POOL` in the volume path,
-   - `SESSION_SECRET` (from step 2 — never change it later, it would sign everyone out),
-   - `ALLOWED_SIGNUP_EMAILS` — the email of whoever sets the wedding up
-     (on wedding.wright-guys.com: your brother). Leave `SUPERUSER_EMAILS` empty.
-   - the SMTP settings for Resend (see *Email* below) — set these first, so
-     accounts get confirmed and passwords can be reset.
-   On TrueNAS 25.10+ the YAML must contain a `services:` key, which this file has.
-4. **Reverse proxy.** Point `wedding.wright-guys.com` at
-   `http://TRUENAS_IP:3080` in your existing proxy, with HTTPS. Make sure the
-   proxy passes the original `Host` header (most do by default) and allows
-   uploads of at least 6 MB (gift pictures). In DNS, add a record for
-   `wedding` pointing at your proxy.
-5. **The couple's accounts.** Your brother opens
-   https://wedding.wright-guys.com/signup, chooses "I've been told I can sign
-   up", creates his account with the email in `ALLOWED_SIGNUP_EMAILS`, clicks
-   the confirmation link emailed to him, and sets up the wedding. Then, in Settings → Hosts, he invites his fiancée: her
-   invite link lets her create an account and join the same wedding as a
-   co-host, with the same access to everything (only the owner can manage
-   hosts and change the web address). Nobody else can sign up.
+Everything for the site lives in one dataset: `compose.yaml` (from this
+repo), your `.env` (settings and secrets — only on the server, never in git)
+and `data/` (the database and gift pictures).
+
+Run these in **System → Shell** (as root). Change `POOL` to your pool's name.
+
+```sh
+POOL=tank
+# 1. A dataset for the app (shows up under Datasets like any other)
+midclt call pool.dataset.create '{"name": "'$POOL'/apps", "type": "FILESYSTEM"}' 2>/dev/null
+midclt call pool.dataset.create '{"name": "'$POOL'/apps/wedding", "type": "FILESYSTEM"}'
+cd /mnt/$POOL/apps/wedding
+
+# 2. The compose file and a settings file to fill in
+curl -fsSLO https://raw.githubusercontent.com/oliver-31415/wedding-app/main/deploy/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/oliver-31415/wedding-app/main/deploy/.env.example -o .env
+chmod 600 .env
+sed -i "s/^SESSION_SECRET=.*/SESSION_SECRET=$(openssl rand -hex 32)/" .env
+
+# 3. Fill in ALLOWED_SIGNUP_EMAILS, SMTP_PASS (Resend API key) and EMAIL_FROM
+nano .env
+
+# 4. Folder for the database and pictures, owned by the apps user
+mkdir -p data && chown 568:568 data
+
+# 5. Start it
+docker compose up -d
+docker compose ps
+curl -s http://localhost:3080/api/health    # → {"ok":true}
+```
+
+Then:
+- **Reverse proxy:** send `wedding.wright-guys.com` to
+  `http://TRUENAS_IP:3080` with HTTPS. Keep the original `Host` header (the
+  default in most proxies) and allow request bodies of at least 6 MB (gift
+  pictures). Add a DNS record for `wedding` pointing at your proxy.
+- **Accounts:** your brother opens https://wedding.wright-guys.com/signup,
+  chooses "I've been told I can sign up", signs up with the email in
+  `ALLOWED_SIGNUP_EMAILS`, clicks the confirmation link emailed to him, and
+  sets up the wedding. In Settings → Hosts he invites his fiancée; her invite
+  only works for her address, and she joins as co-host. Nobody else can sign up.
+
+Containers started this way restart with the server (`restart: unless-stopped`).
+To change a setting later: `nano .env`, then `docker compose up -d`.
 
 ### Email (SMTP, e.g. Resend)
 
@@ -70,11 +89,11 @@ With [Resend](https://resend.com):
 1. Add the domain `wright-guys.com` in Resend and create the DNS records it
    shows you (so emails aren't marked as spam).
 2. Create an API key (Sending access is enough).
-3. In the app's settings set `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=465`,
-   `SMTP_USER=resend`, `SMTP_PASS=<the API key>` and `EMAIL_FROM` to an
-   address on the verified domain, e.g. `Tom & Ana <wedding@wright-guys.com>`.
-   (Port 587 with `SMTP_SECURE=false` also works if 465 is blocked.)
-4. Save — the app restarts with email turned on.
+3. In `.env` set `SMTP_PASS` to the API key and `EMAIL_FROM` to an address
+   on the verified domain, e.g. `Tom & Ana <wedding@wright-guys.com>`
+   (`SMTP_HOST`, `SMTP_PORT` and `SMTP_USER` are already filled in for
+   Resend; port 587 with `SMTP_SECURE=false` also works if 465 is blocked).
+4. `docker compose up -d` to restart with email turned on.
 
 **Once SMTP is set, new accounts must confirm their email** before they can
 use the site (they get a link valid for 3 days; "Send the link again" is on
@@ -109,26 +128,20 @@ and within about 5 minutes watchtower on TrueNAS pulls it and restarts the
 container. Watch progress in the repository's *Actions* tab; a red ✗ means
 nothing was deployed.
 
-**Update right now, by hand** (System → Shell on TrueNAS):
+**Update right now, by hand:**
 
 ```sh
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-  nickfedor/watchtower --run-once --cleanup wedding
+cd /mnt/POOL/apps/wedding
+docker compose pull wedding && docker compose up -d wedding
 ```
 
-This pulls the latest image and recreates the `wedding` container with the
-same settings — exactly what the automatic check does every 5 minutes.
-(A plain `docker restart wedding` would keep running the old image.)
-
 **Roll back** to an earlier version: every build is also tagged with its git
-commit. Find the commit in GitHub (Actions → the run → the "image" job, or
-the commit list), then in Apps → wedding → Edit change the image to
-`ghcr.io/oliver-31415/wedding-app:<commit-sha>` and save. Watchtower won't
-replace a pinned tag; switch back to `:latest` to resume automatic updates.
-(Database migrations only add things, so an older version usually runs fine
-on a newer database — but take a snapshot before rolling back.)
+commit. Take a snapshot of the dataset first, then in `compose.yaml` change
+the image to `ghcr.io/oliver-31415/wedding-app:<commit-sha>` (find the SHA in
+GitHub's commit list) and `docker compose up -d`. Watchtower won't replace a
+pinned tag; change it back to `:latest` to resume automatic updates.
 
-**See logs:** Apps → wedding → Logs, or `docker logs -f wedding`.
+**See logs:** `docker logs -f wedding`.
 
 **Health check:** https://wedding.wright-guys.com/api/health returns
 `{"ok":true}` when the app and database are working.
