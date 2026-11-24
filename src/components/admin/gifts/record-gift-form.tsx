@@ -12,6 +12,7 @@ import {
   SubmitButton,
   Textarea,
 } from "@/components/ui";
+import { GiftPicture } from "@/components/site/gifts/gift-picture";
 import type { ActionState } from "@/lib/forms";
 import { MAX_MESSAGE, MAX_NAME, MAX_QUANTITY, MIN_QUANTITY } from "@/lib/gift-admin/helpers";
 
@@ -20,7 +21,7 @@ export function RecordGiftForm({
   funds,
   currency,
 }: {
-  items: Array<{ id: string; name: string }>;
+  items: Array<{ id: string; name: string; imageUrl?: string | null }>;
   funds: Array<{ id: string; name: string }>;
   currency: string;
 }) {
@@ -61,6 +62,8 @@ export function RecordGiftForm({
       : []),
   ];
 
+  const selectedItem = items.find((i) => i.id === itemId);
+
   return (
     <form action={action} className="max-w-2xl space-y-5" noValidate>
       <FormMessage state={state} />
@@ -97,19 +100,25 @@ export function RecordGiftForm({
         </Field>
       ) : (
         <Field label="Gift item" htmlFor="record-itemId" error={state?.errors?.itemId}>
-          <Select
-            id="record-itemId"
-            name="itemId"
-            value={itemId}
-            onChange={(e) => setItemId(e.target.value)}
-            invalid={!!state?.errors?.itemId}
-          >
-            {items.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-              </option>
-            ))}
-          </Select>
+          <div className="flex items-center gap-3">
+            {selectedItem?.imageUrl && (
+              <GiftPicture src={selectedItem.imageUrl} alt="" size="sm" />
+            )}
+            <Select
+              id="record-itemId"
+              name="itemId"
+              value={itemId}
+              onChange={(e) => setItemId(e.target.value)}
+              invalid={!!state?.errors?.itemId}
+              className="flex-1"
+            >
+              {items.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </Select>
+          </div>
         </Field>
       )}
 

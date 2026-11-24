@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { CopyListButton } from "@/components/admin/gifts/copy-list-button";
 import { GiftsChrome } from "@/components/admin/gifts/gifts-chrome";
+import { GiftPicture } from "@/components/site/gifts/gift-picture";
 import { requireHost } from "@/lib/auth";
 import { formatDateShort, todayIn } from "@/lib/dates";
 import { loadAdminGiftBundle } from "@/lib/gift-admin/data";
@@ -150,8 +151,11 @@ export default async function AdminGiftsReceivedPage({
               return (
                 <Card key={`${entry.kind}-${entry.id}`}>
                   <CardBody className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                    <div className="flex items-start gap-3">
+                      {entry.kind === "claim" && entry.imageUrl && (
+                        <GiftPicture src={entry.imageUrl} alt="" size="sm" />
+                      )}
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium text-ink">{entry.giverName}</p>
                         {entry.giverEmail && (
                           <p className="truncate text-xs text-ink-muted">{entry.giverEmail}</p>
@@ -241,7 +245,14 @@ export default async function AdminGiftsReceivedPage({
                           <p className="text-xs text-ink-muted">{entry.giverEmail}</p>
                         )}
                       </Td>
-                      <Td className="text-ink">{entry.what}</Td>
+                      <Td className="text-ink">
+                        <div className="flex items-center gap-2.5">
+                          {entry.kind === "claim" && entry.imageUrl && (
+                            <GiftPicture src={entry.imageUrl} alt="" size="sm" />
+                          )}
+                          <span>{entry.what}</span>
+                        </div>
+                      </Td>
                       <Td className="whitespace-nowrap font-medium text-ink tabular-nums">
                         {entry.kind === "claim"
                           ? entry.quantity > 1

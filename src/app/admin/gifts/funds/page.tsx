@@ -234,7 +234,7 @@ export default async function AdminCashFundsPage() {
             />
             <CardBody>
               <RecordGiftForm
-                items={items.map((i) => ({ id: i.id, name: i.name }))}
+                items={items.map((i) => ({ id: i.id, name: i.name, imageUrl: i.imageUrl }))}
                 funds={funds.map((f) => ({ id: f.id, name: f.name }))}
                 currency={wedding.currency}
               />

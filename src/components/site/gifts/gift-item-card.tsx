@@ -52,7 +52,7 @@ export function GiftItemCard({
 
   return (
     <article
-      className={`rounded-[var(--radius-card)] border border-line bg-surface p-6 transition-opacity ${
+      className={`flex flex-col rounded-[var(--radius-card)] border border-line bg-surface p-6 transition-opacity ${
         item.complete ? "opacity-75" : ""
       }`}
     >
@@ -61,7 +61,7 @@ export function GiftItemCard({
           <GiftPicture src={item.imageUrl} alt={item.name} muted={item.complete} />
         </div>
       )}
-      <div className="space-y-3">
+      <div className="flex flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">
             {item.mostWanted && !item.complete && (
@@ -95,34 +95,34 @@ export function GiftItemCard({
 
         {state?.ok && <Notice tone="good">{state.message}</Notice>}
 
-        {item.complete ? (
-          <div className="pt-2">
+        <div className="mt-auto pt-2">
+          {item.complete ? (
             <span className="inline-flex items-center rounded-full bg-good-soft px-3 py-1 text-sm font-medium text-good">
               Gifted — thank you!
             </span>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            {item.url && (
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium whitespace-nowrap text-ink transition-colors hover:bg-sunken"
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              {item.url && (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-10 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium whitespace-nowrap text-ink transition-colors hover:bg-sunken"
+                >
+                  View in store ↗
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium whitespace-nowrap text-white transition-opacity hover:opacity-90"
               >
-                View in store ↗
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={() => setOpen((v) => !v)}
-              aria-expanded={open}
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium whitespace-nowrap text-white transition-opacity hover:opacity-90"
-            >
-              {open ? "Close" : "I've bought this"}
-            </button>
-          </div>
-        )}
+                {open ? "Close" : "I've bought this"}
+              </button>
+            </div>
+          )}
+        </div>
 
         {open && !item.complete && (
           <form

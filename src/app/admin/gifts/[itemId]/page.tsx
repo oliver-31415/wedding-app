@@ -8,7 +8,8 @@ import { requireHost } from "@/lib/auth";
 export default async function EditGiftItemPage({ params, searchParams }: PageProps<"/admin/gifts/[itemId]">) {
   const { wedding } = await requireHost();
   const { itemId } = await params;
-  const { pictureNotice } = await searchParams;
+  const { pictureNotice: rawNotice } = await searchParams;
+  const pictureNotice = Array.isArray(rawNotice) ? rawNotice[0] : rawNotice;
 
   const [item] = await db
     .select()

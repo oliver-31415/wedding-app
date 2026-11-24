@@ -9,11 +9,11 @@ import {
   FormMessage,
   Input,
   LinkButton,
-  Notice,
   SubmitButton,
   Textarea,
   cn,
 } from "@/components/ui";
+import { GiftPicture } from "@/components/site/gifts/gift-picture";
 import type { ActionState } from "@/lib/forms";
 import {
   GIFT_IMAGE_ACCEPT,
@@ -28,7 +28,6 @@ import {
   suggestStoreFromUrl,
   type ImageMode,
 } from "@/lib/gift-admin/helpers";
-import { GiftThumbnail } from "./gift-thumbnail";
 
 export type GiftItemFormData = {
   id: string;
@@ -48,11 +47,9 @@ type PictureSource = "upload" | "shop" | "url";
 export function GiftItemForm({
   item,
   currency,
-  pictureNotice,
 }: {
   item?: GiftItemFormData;
   currency: string;
-  pictureNotice?: string;
 }) {
   const [name, setName] = useState(item?.name ?? "");
   const [url, setUrl] = useState(item?.url ?? "");
@@ -70,6 +67,7 @@ export function GiftItemForm({
   const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
   const [imageLink, setImageLink] = useState("");
   const [clientImageError, setClientImageError] = useState<string | null>(null);
+  const [dismissedServerImageError, setDismissedServerImageError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -87,6 +85,7 @@ export function GiftItemForm({
 
   const [state, action] = useActionState(async (prev: ActionState, formData: FormData) => {
     setClientImageError(null);
+    setDismissedServerImageError(false);
     if (imageMode === "upload" && selectedFile) {
       const attached = formData.get("imageFile");
       if (!(attached instanceof File) || attached.size === 0) {
@@ -111,7 +110,8 @@ export function GiftItemForm({
       : imageMode !== "remove"
         ? currentSavedUrl
         : null;
-  const imageError = clientImageError ?? state?.errors?.image;
+  const imageError =
+    clientImageError ?? (dismissedServerImageError ? undefined : state?.errors?.image);
 
   function handleUrlPaste(e: React.ClipboardEvent<HTMLInputElement>) {
     const pasted = e.clipboardData.getData("text").trim();
@@ -127,6 +127,7 @@ export function GiftItemForm({
   function selectSource(next: PictureSource) {
     setActiveSource(next);
     setClientImageError(null);
+    setDismissedServerImageError(true);
     if (next === "upload") {
       setImageMode(selectedFile ? "upload" : "keep");
     } else if (next === "shop") {
@@ -141,6 +142,7 @@ export function GiftItemForm({
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     setClientImageError(null);
+    setDismissedServerImageError(true);
     if (!file) {
       clearSelectedFile();
       if (imageMode === "upload") setImageMode("keep");
@@ -159,6 +161,7 @@ export function GiftItemForm({
 
   function handleRemovePicture() {
     setClientImageError(null);
+    setDismissedServerImageError(true);
     clearSelectedFile();
     setImageLink("");
     setActiveSource("upload");
@@ -167,6 +170,7 @@ export function GiftItemForm({
 
   function handleKeepCurrentPicture() {
     setClientImageError(null);
+    setDismissedServerImageError(true);
     clearSelectedFile();
     setImageLink("");
     setActiveSource("upload");
@@ -178,7 +182,6 @@ export function GiftItemForm({
       {item && <input type="hidden" name="id" value={item.id} />}
       <input type="hidden" name="imageMode" value={imageMode} />
       <FormMessage state={state} />
-      {pictureNotice && !state?.ok && <Notice tone="info">{pictureNotice}</Notice>}
 
       <Field label="Item name" htmlFor="name" error={state?.errors?.name}>
         <Input
@@ -266,10 +269,10 @@ export function GiftItemForm({
 
         {previewSrc && (
           <div className="flex flex-wrap items-center gap-4">
-            <GiftThumbnail
+            <GiftPicture
               src={previewSrc}
               alt={name.trim() || "Gift picture preview"}
-              size="lg"
+              size="preview"
               className="bg-surface"
             />
             <div className="min-w-0 flex-1 space-y-2">
@@ -389,6 +392,7 @@ export function GiftItemForm({
               onChange={(e) => {
                 setImageLink(e.target.value);
                 setClientImageError(null);
+                setDismissedServerImageError(true);
               }}
               maxLength={MAX_URL}
               placeholder="https://example.com/product-photo.jpg"
