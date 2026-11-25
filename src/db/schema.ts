@@ -421,7 +421,8 @@ export const eventResponses = sqliteTable(
   ],
 );
 
-export const QUESTION_TYPES = ["choice", "text"] as const;
+/** "dietary" is a fixed tick-list plus a note (src/lib/rsvp/dietary.ts); at most one active per wedding. */
+export const QUESTION_TYPES = ["choice", "text", "dietary"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 export type QuestionOption = { id: string; label: string };
 
@@ -461,7 +462,10 @@ export const questions = sqliteTable(
     position: position(),
     createdAt: createdAt(),
   },
-  (t) => [index("questions_wedding").on(t.weddingId)],
+  (t) => [
+    index("questions_wedding").on(t.weddingId),
+    uniqueIndex("questions_one_dietary").on(t.weddingId).where(sql`${t.type} = 'dietary' AND ${t.archived} = 0`),
+  ],
 );
 
 /** guestId is set for guest-scope questions, householdId for household-scope. */

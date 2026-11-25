@@ -7,6 +7,7 @@
 import type { Audience, QuestionOption, QuestionType } from "@/db/schema";
 import { inAudience } from "@/lib/audience";
 import { endOfDay } from "@/lib/dates";
+import { describeDietary, encodeDietary, MAX_DIETARY_NOTE, parseDietary } from "@/lib/rsvp/dietary";
 
 export type SnapGuest = {
   id: string;
@@ -413,6 +414,19 @@ export function validateSubmission(
       errors[field] = `Keep this under ${MAX_TEXT_ANSWER} characters.`;
       continue;
     }
+    if (q.type === "dietary") {
+      const dietary = parseDietary(value);
+      if (!dietary) {
+        errors[field] = "Tick what applies, or “No dietary requirements”.";
+        continue;
+      }
+      if ((dietary.note?.length ?? 0) > MAX_DIETARY_NOTE) {
+        errors[field] = `Keep the note under ${MAX_DIETARY_NOTE} characters.`;
+        continue;
+      }
+      draft.answers.set(answerKey(q.id, guestId), encodeDietary(dietary));
+      continue;
+    }
     draft.answers.set(answerKey(q.id, guestId), value);
   }
 
@@ -502,8 +516,19 @@ export function usableAnswers<T extends { questionId: string; value: string }>(a
   return answers.filter((a) => {
     const q = byId.get(a.questionId);
     if (!q || q.archived) return false;
+    if (q.type === "dietary") return parseDietary(a.value) !== null;
     return q.type === "text" || q.options.some((o) => o.id === a.value);
   });
+}
+
+/** A stored answer as people read it: the option's label, the dietary list, or the typed text. */
+export function answerLabel(question: Pick<SnapQuestion, "type" | "options">, raw: string): string {
+  if (question.type === "choice") return question.options.find((o) => o.id === raw)?.label ?? raw;
+  if (question.type === "dietary") {
+    const dietary = parseDietary(raw);
+    return dietary ? describeDietary(dietary) : "";
+  }
+  return raw;
 }
 
 export function responsesMap(responses: SnapResponse[]): Map<string, boolean> {

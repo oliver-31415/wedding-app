@@ -55,12 +55,20 @@ export function toCents(raw: unknown): number | null {
 // ---------------------------------------------------------------- sources
 
 type Json = unknown;
+type Obj = Record<string, Json>;
+type Price = { cents: number | null; currency: string | null };
+const NO_PRICE: Price = { cents: null, currency: null };
 const asArray = (v: Json): Json[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
-const isType = (node: Record<string, Json>, type: string) => asArray(node["@type"]).includes(type);
+const isObj = (v: Json): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
+// Some shops write "type" without the "@".
+const isType = (node: Obj, type: string) => asArray(node["@type"] ?? node.type).includes(type);
+const currencyCode = (v: Json): string | null =>
+  typeof v === "string" && /^[A-Za-z]{3}$/.test(v.trim()) ? v.trim().toUpperCase() : null;
 
 /** The first schema.org Product (or ProductGroup) in the page's JSON-LD. */
-function jsonLdProduct(html: string): Record<string, Json> | null {
-  for (const m of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+function jsonLdProduct(html: string): Obj | null {
+  // "ld+json", sometimes with the "+" written as an HTML entity.
+  for (const m of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld(?:\+|&#x2B;|&#43;|&plus;)json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
     let data: Json;
     try {
       data = JSON.parse(m[1].trim());
@@ -81,7 +89,7 @@ function jsonLdProduct(html: string): Record<string, Json> | null {
   return null;
 }
 
-function ldImage(product: Record<string, Json>): string | null {
+function ldImage(product: Obj): string | null {
   for (const img of asArray(product.image)) {
     if (typeof img === "string") return img;
     if (img && typeof img === "object") {
@@ -92,28 +100,35 @@ function ldImage(product: Record<string, Json>): string | null {
   return null;
 }
 
-function ldPrice(product: Record<string, Json>): { cents: number | null; currency: string | null } {
-  // Variants (ProductGroup) carry their own offers.
-  const offerSources = [product.offers, ...asArray(product.hasVariant).map((v) => (v as Record<string, Json>)?.offers)];
-  for (const source of offerSources) {
-    for (const offer of asArray(source)) {
-      if (!offer || typeof offer !== "object") continue;
-      const o = offer as Record<string, Json>;
-      const spec = asArray(o.priceSpecification)[0] as Record<string, Json> | undefined;
-      const cents = toCents(o.price ?? o.lowPrice ?? spec?.price);
-      if (cents) {
-        const currency = o.priceCurrency ?? spec?.priceCurrency;
-        return { cents, currency: typeof currency === "string" ? currency.toUpperCase() : null };
-      }
+/** A price specification that's the old or recommended price, not what you'd pay now. */
+const isWasPrice = (spec: Obj) => /strikethrough|listprice|srp|msrp|rrp|was/i.test(String(spec.priceType ?? ""));
+
+function ldPrice(product: Obj): Price {
+  // Variants (ProductGroup) carry their own offers; an AggregateOffer may list its offers.
+  const offers: Json[] = [];
+  const addOffers = (source: Json) => {
+    for (const o of asArray(source)) {
+      offers.push(o);
+      if (isObj(o) && o.offers) offers.push(...asArray(o.offers));
     }
+  };
+  addOffers(product.offers);
+  for (const variant of asArray(product.hasVariant)) if (isObj(variant)) addOffers(variant.offers);
+  for (const o of offers) {
+    if (!isObj(o)) continue;
+    const spec = asArray(o.priceSpecification).filter(isObj).find((s) => !isWasPrice(s) && toCents(s.price));
+    const cents = toCents(o.price) ?? toCents(o.lowPrice) ?? toCents(spec?.price);
+    if (cents) return { cents, currency: currencyCode(o.priceCurrency) ?? currencyCode(spec?.priceCurrency) };
   }
-  return { cents: null, currency: null };
+  return NO_PRICE;
 }
+
+const attr = (tag: string, name: string) =>
+  new RegExp(`(?:^|\\s)${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, "i").exec(tag)?.[2];
 
 function metaTags(html: string): Map<string, string> {
   const head = html.slice(0, 600_000);
   const map = new Map<string, string>();
-  const attr = (tag: string, name: string) => new RegExp(`\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, "i").exec(tag)?.[2];
   for (const tag of head.match(/<meta\b[^>]*>/gi) ?? []) {
     const key = (attr(tag, "property") ?? attr(tag, "name") ?? attr(tag, "itemprop") ?? "").toLowerCase();
     const content = attr(tag, "content");
@@ -122,15 +137,145 @@ function metaTags(html: string): Map<string, string> {
   return map;
 }
 
-/** A price stated the same way everywhere in the page's data ("price": "651.00"), if only one. */
-function onlyPriceInPage(html: string): number | null {
-  const found = new Set<number>();
-  for (const m of html.matchAll(/["']price["']\s*:\s*["']?([0-9][0-9,]*(?:\.[0-9]+)?)/g)) {
-    const cents = toCents(m[1]);
-    if (cents) found.add(cents);
-    if (found.size > 1) return null;
+/** The one value in `values`, or null when there are none or they disagree. */
+const onlyOne = <T>(values: Iterable<T>): T | null => {
+  const set = new Set(values);
+  return set.size === 1 ? [...set][0] : null;
+};
+
+/**
+ * Whether the page shows this amount with a dollar sign ("$1,299", "$49.00").
+ * Used to tell whether a bare whole number in page data is dollars or cents.
+ */
+function shownAsPrice(html: string, cents: number): boolean {
+  const whole = String(Math.floor(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",?");
+  const part = cents % 100 === 0 ? "(?:\\.00)?" : `\\.${String(cents % 100).padStart(2, "0")}`;
+  return new RegExp(`\\$\\s?${whole}${part}(?![0-9]|[.,][0-9])`).test(html);
+}
+
+/**
+ * An amount from a shop's own data. Decimals are dollars ("49.95"). A whole
+ * number may be dollars (Myer's 99) or cents (Shopify's 4900), so it only
+ * counts when the page shows it as exactly one of the two.
+ */
+function dataAmount(raw: Json, html: string): number | null {
+  const text = typeof raw === "number" ? String(raw) : typeof raw === "string" ? raw.trim() : "";
+  if (!/^\$?[0-9][0-9,]*(\.[0-9]+)?$/.test(text)) return null;
+  if (text.includes(".") || text.startsWith("$")) return toCents(text);
+  const ifDollars = toCents(text);
+  if (!ifDollars) return null;
+  const ifCents = ifDollars / 100;
+  const dollarsShown = shownAsPrice(html, ifDollars);
+  return dollarsShown === shownAsPrice(html, ifCents) ? null : dollarsShown ? ifDollars : ifCents;
+}
+
+/** Currency codes stated next to a price, e.g. "priceCurrency": "AUD". */
+const CURRENCY_KEY = /["'](?:priceCurrency|currencyCode|currencyIso|currency)["']\s*:\s*["']([A-Za-z]{3})["']/;
+
+/**
+ * A price stated the same way throughout the page's data ("price": "651.00").
+ * A price seen only once may belong to something else on the page (a
+ * membership, a delivery fee), so it needs to appear at least twice.
+ */
+function onlyPriceInPage(html: string): Price {
+  const prices: number[] = [];
+  const currencies: string[] = [];
+  for (const m of html.matchAll(/["']price["']\s*:\s*(["']?)(\$?[0-9][0-9,]*(?:\.[0-9]+)?)\1(?![0-9])/g)) {
+    const cents = dataAmount(m[2], html);
+    if (!cents) continue;
+    prices.push(cents);
+    const near = CURRENCY_KEY.exec(html.slice(m.index, m.index + 200))?.[1];
+    if (near) currencies.push(near.toUpperCase());
   }
-  return found.size === 1 ? [...found][0] : null;
+  const cents = prices.length >= 2 ? onlyOne(prices) : null;
+  return cents ? { cents, currency: onlyOne(currencies) } : NO_PRICE;
+}
+
+/** schema.org microdata: <span itemprop="price" content="49.00">, when the page agrees on one. */
+function microdataPrice(html: string): Price {
+  const read = (prop: string) =>
+    [...html.matchAll(new RegExp(`<[a-z][^>]*\\sitemprop\\s*=\\s*["']${prop}["'][^>]*>([^<]{0,40})`, "gi"))].map(
+      (m) => attr(m[0], "content") ?? decodeEntities(m[1]),
+    );
+  const prices = read("price").map(toCents).filter((c): c is number => !!c);
+  const cents = prices.length ? onlyOne(prices) : onlyOne(read("lowPrice").map(toCents).filter((c): c is number => !!c));
+  return cents ? { cents, currency: onlyOne(read("priceCurrency").map(currencyCode).filter((c) => !!c)) } : NO_PRICE;
+}
+
+/** Amazon's buy box: the price you'd pay for the item on the page. */
+function amazonPrice(html: string): Price {
+  const input = (pattern: string) => {
+    const tag = new RegExp(`<input\\b[^>]*${pattern}[^>]*>`, "i").exec(html)?.[0];
+    return tag ? attr(tag, "value") : undefined;
+  };
+  const amount = input("customerVisiblePrice\\]\\[amount\\]") ?? input(`id=["']twister-plus-price-data-price["']`);
+  const shown = /apex-pricetopay-value["'][^>]*>\s*<span class=["']a-offscreen["']>\s*\$([0-9][0-9,]*(?:\.[0-9]+)?)\s*</i.exec(html)?.[1];
+  const cents = toCents(amount) ?? toCents(shown);
+  return cents ? { cents, currency: currencyCode(input("customerVisiblePrice\\]\\[currencyCode\\]")) } : NO_PRICE;
+}
+
+/** A money value from page data: 49.95, "49.95", { value: 42, currencyIso: "AUD" }, { centAmount: 4200 }. */
+function moneyValue(v: Json, html: string): Price {
+  if (isObj(v)) {
+    const currency = currencyCode(v.currencyIso ?? v.currencyCode ?? v.currency);
+    if (typeof v.centAmount === "number") return v.centAmount > 0 ? { cents: Math.round(v.centAmount), currency } : NO_PRICE;
+    const amount = v.value ?? v.amount;
+    // A money object that names its currency is in dollars, not cents.
+    const cents = currency && (typeof amount === "number" || typeof amount === "string") ? toCents(amount) : dataAmount(amount, html);
+    return cents ? { cents, currency } : NO_PRICE;
+  }
+  const cents = dataAmount(v, html);
+  return cents ? { cents, currency: null } : NO_PRICE;
+}
+
+/** Next.js shops: the product in the page's __NEXT_DATA__ (pageProps.product or close to it). */
+function nextDataPrice(html: string): Price {
+  const raw = /<script\b[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i.exec(html)?.[1];
+  if (!raw) return NO_PRICE;
+  let data: Json;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return NO_PRICE;
+  }
+  const props = isObj(data) && isObj(data.props) ? data.props.pageProps : null;
+  let level: Json[] = [props];
+  let product: Obj | null = null;
+  for (let depth = 0; depth < 3 && !product && level.length; depth++) {
+    product = level.filter(isObj).map((o) => o.product).find(isObj) ?? null;
+    level = level.filter(isObj).flatMap((o) => Object.values(o));
+  }
+  if (!product) return NO_PRICE;
+  for (const key of ["price", "currentPrice", "sellingPrice", "salePrice"]) {
+    const p = moneyValue(product[key], html);
+    if (p.cents) return p;
+  }
+  // A range ("from $27") is read like schema.org's lowPrice.
+  const range = product.priceRange;
+  return isObj(range) ? moneyValue(range.minPrice ?? range.min, html) : NO_PRICE;
+}
+
+/** The one currency the page's price data names, if it names exactly one. */
+function pageCurrency(html: string, meta: Map<string, string>): string | null {
+  const codes = [...html.matchAll(new RegExp(CURRENCY_KEY.source, "g"))].map((m) => m[1].toUpperCase());
+  for (const key of ["product:price:currency", "og:price:currency", "pricecurrency"]) {
+    const code = currencyCode(meta.get(key));
+    if (code) codes.push(code);
+  }
+  return onlyOne(codes);
+}
+
+/**
+ * Bot checks some shops answer with instead of the page ("Just a moment…",
+ * "Pardon Our Interruption"), sometimes with a 200 status.
+ */
+export function looksLikeBlockedPage(html: string): boolean {
+  if (html.length > 100_000) return false;
+  const title = tidy(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1], 200) ?? "";
+  return (
+    /^(just a moment|pardon our interruption|access denied|attention required|are you a robot|security check)/i.test(title) ||
+    /window\.KPSDK|challenges\.cloudflare\.com|_Incapsula_Resource/.test(html)
+  );
 }
 
 const looksLikeLogo = (url: string) => /logo|placeholder|default[-_]?og|open-?graph|share[-_]image/i.test(url);
@@ -172,16 +317,32 @@ export function extractProductDetails(html: string, pageUrl: string): ProductDet
     name = titleName;
   }
 
-  // Price
-  let { cents: priceCents, currency } = product ? ldPrice(product) : { cents: null, currency: null as string | null };
-  if (!priceCents) {
-    priceCents =
-      toCents(meta.get("product:price:amount")) ??
-      toCents(meta.get("og:price:amount")) ??
-      toCents(meta.get("price")) ??
-      onlyPriceInPage(html);
-    currency = (meta.get("product:price:currency") ?? meta.get("og:price:currency") ?? meta.get("pricecurrency") ?? null)?.toUpperCase() ?? null;
+  // Price: structured data first, then shop-specific patterns, then the page's own data.
+  const metaCurrency = currencyCode(meta.get("product:price:currency") ?? meta.get("og:price:currency") ?? meta.get("pricecurrency"));
+  const fromMeta = (key: string): Price => {
+    const cents = toCents(meta.get(key));
+    return cents ? { cents, currency: metaCurrency } : NO_PRICE;
+  };
+  const priceSources: (() => Price)[] = [
+    () => (product ? ldPrice(product) : NO_PRICE),
+    () => fromMeta("product:price:amount"),
+    () => fromMeta("og:price:amount"),
+    () => microdataPrice(html),
+    () => fromMeta("price"),
+    () => amazonPrice(html),
+    () => nextDataPrice(html),
+    () => onlyPriceInPage(html),
+  ];
+  let price = NO_PRICE;
+  for (const source of priceSources) {
+    price = source();
+    if (price.cents) break;
   }
+  const priceCents = price.cents;
+  // A price with no stated currency on an Australian shop is in dollars (AUD).
+  const currency = priceCents
+    ? (price.currency ?? metaCurrency ?? (host.endsWith(".au") ? "AUD" : pageCurrency(html, meta)))
+    : null;
 
   // Picture: the product's own image before the page's sharing image, which is
   // sometimes just the shop's logo.

@@ -154,9 +154,15 @@ export function validateQuestionInput(
 
   // --- type
   const type: QuestionType | null =
-    input.type === "choice" || input.type === "text" ? input.type : null;
+    input.type === "choice" || input.type === "text" || input.type === "dietary" ? input.type : null;
   if (!type) {
     errors.type = "Choose a question type.";
+  } else if (
+    type === "dietary" &&
+    !ctx.editing?.archived &&
+    ctx.allQuestions.some((q) => q.type === "dietary" && !q.archived && q.id !== ctx.editing?.id)
+  ) {
+    errors.type = "You already ask about dietary requirements. Edit that question instead.";
   } else if (ctx.editing && type !== ctx.editing.type) {
     if (ctx.answerCount > 0) {
       errors.type = "You can't change the question type once guests have answered it.";
@@ -170,6 +176,8 @@ export function validateQuestionInput(
     input.scope === "guest" || input.scope === "household" ? input.scope : null;
   if (!scope) {
     errors.scope = "Choose whether to ask each guest or once per household.";
+  } else if (type === "dietary" && scope !== "guest") {
+    errors.scope = "Dietary requirements are asked of each guest, so every person is counted.";
   } else if (ctx.editing && scope !== ctx.editing.scope) {
     if (ctx.answerCount > 0) {
       errors.scope = "You can't switch between per-guest and per-household once guests have answered.";

@@ -46,6 +46,11 @@ cleverness: every screen should look and behave like the others.
   and the couple can mark them posted / texted / in person / other — those
   count as reached exactly like emails. Never invent a delivery the couple
   didn't record.
+- **Dietary requirements** are a question type (`"dietary"`, `src/lib/rsvp/dietary.ts`):
+  a fixed checklist plus a note, stored as JSON in `answers.value`
+  (`{"needs":[]}` = none). Always per guest, at most one active per wedding.
+  Totals come from `computeStats` (`QuestionStats.dietary`), shown on RSVPs →
+  Dietary; chart slices are exact combinations so they never overlap.
 - **Visual editor** (`/editor/[pageId]`): the guest page in an iframe with
   `?edit=1`. Editable parts carry `editAttrs(...)` from `src/lib/edit-targets.ts`
   (hosts only); `EditBridge` turns clicks into messages that open the matching

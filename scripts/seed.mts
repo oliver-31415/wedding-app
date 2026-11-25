@@ -78,7 +78,6 @@ const reception = await ev(2, {
 // questions
 const meal = newId();
 const dietary = newId();
-const dietaryDetail = newId();
 await db.insert(schema.questions).values([
   {
     id: meal,
@@ -97,26 +96,13 @@ await db.insert(schema.questions).values([
   {
     id: dietary,
     weddingId,
-    type: "choice",
+    type: "dietary",
     label: "Any dietary requirements?",
-    options: [
-      { id: "no", label: "No" },
-      { id: "yes", label: "Yes" },
-    ],
+    required: true,
     eventId: reception,
     position: 1,
   },
-  {
-    id: dietaryDetail,
-    weddingId,
-    type: "text",
-    label: "Tell us about them",
-    required: true,
-    parentQuestionId: dietary,
-    parentOptionId: "yes",
-    position: 2,
-  },
-  { id: newId(), weddingId, type: "text", label: "A song that will get you dancing", scope: "household", position: 3 },
+  { id: newId(), weddingId, type: "text", label: "A song that will get you dancing", scope: "household", position: 2 },
 ]);
 
 // guests
@@ -193,9 +179,9 @@ for (const g of jones.guests) {
 await answer(meal, jones.guests[0], null, "beef");
 await answer(meal, jones.guests[1], null, "fish");
 await answer(meal, jones.guests[2], null, "veg");
-await answer(dietary, jones.guests[0], null, "no");
-await answer(dietary, jones.guests[1], null, "yes");
-await answer(dietaryDetail, jones.guests[1], null, "Coeliac — no gluten please");
+await answer(dietary, jones.guests[0], null, '{"needs":[]}');
+await answer(dietary, jones.guests[1], null, '{"needs":["coeliac"],"note":"Even crumbs make me sick, so please no shared fryer"}');
+await answer(dietary, jones.guests[2], null, '{"needs":["vegetarian"]}');
 await activity(jones.id, "Can't wait! Nathan is very excited about the dance floor.");
 
 // Robert is in the wedding party (invited to the rehearsal); Maria isn't.
@@ -206,6 +192,8 @@ for (const g of callahan.guests) {
 }
 await answer(meal, callahan.guests[0], null, "beef");
 await answer(meal, callahan.guests[1], null, "beef");
+await answer(dietary, callahan.guests[0], null, '{"needs":[]}');
+await answer(dietary, callahan.guests[1], null, '{"needs":["dairy_free","nut_allergy"],"note":"Anaphylactic to peanuts"}');
 await activity(callahan.id);
 
 await respond(ellie.guests[0], ceremony, false);

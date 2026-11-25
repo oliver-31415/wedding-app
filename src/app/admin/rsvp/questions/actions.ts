@@ -75,6 +75,14 @@ async function loadQuestionContext(weddingId: string, editingId: string | null) 
   };
 }
 
+const DIETARY_CLASH = "You already ask about dietary requirements. Edit that question instead.";
+
+/** The database allows one active dietary question per wedding (two saves at once can still race). */
+function isUniqueClash(e: unknown): boolean {
+  const text = (x: unknown): string => (x instanceof Error ? `${x.message} ${text(x.cause)}` : String(x ?? ""));
+  return text(e).includes("UNIQUE constraint failed");
+}
+
 /** Renumbers active questions 0…n in the order guests see them (follow-ups after their question). */
 async function normaliseActivePositions(weddingId: string) {
   const active = chainOrder(
@@ -141,21 +149,26 @@ export async function createQuestion(
   const activeCount = ctx.allQuestions.filter((q) => !q.archived).length;
   const id = newId();
 
-  await db.insert(schema.questions).values({
-    id,
-    weddingId: wedding.id,
-    type: result.value.type,
-    label: result.value.label,
-    options: result.value.options,
-    required: result.value.required,
-    scope: result.value.scope,
-    eventId: result.value.eventId,
-    parentQuestionId: result.value.parentQuestionId,
-    parentOptionId: result.value.parentOptionId,
-    audience: result.value.audience,
-    archived: false,
-    position: activeCount,
-  });
+  try {
+    await db.insert(schema.questions).values({
+      id,
+      weddingId: wedding.id,
+      type: result.value.type,
+      label: result.value.label,
+      options: result.value.options,
+      required: result.value.required,
+      scope: result.value.scope,
+      eventId: result.value.eventId,
+      parentQuestionId: result.value.parentQuestionId,
+      parentOptionId: result.value.parentOptionId,
+      audience: result.value.audience,
+      archived: false,
+      position: activeCount,
+    });
+  } catch (e) {
+    if (result.value.type === "dietary" && isUniqueClash(e)) return fail(DIETARY_CLASH, { type: DIETARY_CLASH });
+    throw e;
+  }
   await normaliseActivePositions(wedding.id);
 
   revalidateRsvp(wedding.slug);
@@ -195,22 +208,27 @@ export async function updateQuestion(
     return fail(result.message, result.errors);
   }
 
-  await db
-    .update(schema.questions)
-    .set({
-      type: result.value.type,
-      label: result.value.label,
-      options: result.value.options,
-      required: result.value.required,
-      scope: result.value.scope,
-      eventId: result.value.eventId,
-      parentQuestionId: result.value.parentQuestionId,
-      parentOptionId: result.value.parentOptionId,
-      audience: result.value.audience,
-    })
-    .where(
-      and(eq(schema.questions.id, id), eq(schema.questions.weddingId, wedding.id)),
-    );
+  try {
+    await db
+      .update(schema.questions)
+      .set({
+        type: result.value.type,
+        label: result.value.label,
+        options: result.value.options,
+        required: result.value.required,
+        scope: result.value.scope,
+        eventId: result.value.eventId,
+        parentQuestionId: result.value.parentQuestionId,
+        parentOptionId: result.value.parentOptionId,
+        audience: result.value.audience,
+      })
+      .where(
+        and(eq(schema.questions.id, id), eq(schema.questions.weddingId, wedding.id)),
+      );
+  } catch (e) {
+    if (result.value.type === "dietary" && isUniqueClash(e)) return fail(DIETARY_CLASH, { type: DIETARY_CLASH });
+    throw e;
+  }
 
   await normaliseActivePositions(wedding.id);
   revalidateRsvp(wedding.slug, id);
@@ -319,12 +337,18 @@ export async function restoreQuestion(formData: FormData): Promise<void> {
       ),
     );
 
-  await db
-    .update(schema.questions)
-    .set({ archived: false, position: active.length })
-    .where(
-      and(eq(schema.questions.id, id), eq(schema.questions.weddingId, wedding.id)),
-    );
+  try {
+    await db
+      .update(schema.questions)
+      .set({ archived: false, position: active.length })
+      .where(
+        and(eq(schema.questions.id, id), eq(schema.questions.weddingId, wedding.id)),
+      );
+  } catch (e) {
+    // Only one dietary question can be asked at a time (the list hides Restore then).
+    if (isUniqueClash(e)) return;
+    throw e;
+  }
   await normaliseActivePositions(wedding.id);
   revalidateRsvp(wedding.slug, id);
 }

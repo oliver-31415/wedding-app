@@ -1,4 +1,5 @@
 import { createDraftAction } from "@/app/admin/messages/new/actions";
+import { DietaryDonut, DietaryLegend, dietarySlices } from "@/components/admin/rsvp/dietary-chart";
 import { AttendingTile, AwaitingTile, EventAttendanceCard, ResponseRateTile } from "@/components/admin/rsvp-stats";
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
@@ -194,7 +195,17 @@ export default async function RsvpResponsesPage() {
                         }
                       />
                       <CardBody>
-                        {q.type === "choice" ? (
+                        {q.dietary ? (
+                          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                            <DietaryDonut slices={dietarySlices(q.dietary)} withNeeds={q.dietary.withNeeds} size={140} />
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <DietaryLegend slices={dietarySlices(q.dietary)} />
+                              <Link href="/admin/rsvp/dietary" className="inline-block text-sm font-medium text-brand hover:underline">
+                                Who needs what
+                              </Link>
+                            </div>
+                          </div>
+                        ) : q.type === "choice" ? (
                           <BarList
                             rows={[
                               ...q.options.map((o) => ({ label: o.label, value: o.count })),

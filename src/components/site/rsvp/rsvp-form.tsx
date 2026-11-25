@@ -15,6 +15,7 @@ import {
   type SnapHousehold,
   type SnapQuestion,
 } from "@/lib/rsvp/model";
+import { DietaryControl } from "./dietary-control";
 import {
   buildDraft,
   buildVirtualGuests,
@@ -611,7 +612,16 @@ function QuestionControl({
         )}
       </div>
 
-      {question.type === "choice" ? (
+      {question.type === "dietary" ? (
+        <DietaryControl
+          id={inputId}
+          labelledBy={`${domId}-label`}
+          value={value}
+          invalid={!!error}
+          locked={locked}
+          onChange={onChange}
+        />
+      ) : question.type === "choice" ? (
         <div
           role="radiogroup"
           aria-labelledby={`${domId}-label`}

@@ -19,6 +19,7 @@ import {
   describeQuestionRemovalConfirm,
   summariseQuestion,
 } from "@/lib/rsvp-admin/conditions";
+import { DIETARY_NEEDS } from "@/lib/rsvp/dietary";
 import { chainDepth, chainOrder, sortByPosition } from "@/lib/rsvp/model";
 import { loadSnapshot } from "@/lib/snapshot";
 import { deleteQuestion, reorderQuestion, restoreQuestion } from "./actions";
@@ -38,6 +39,7 @@ export default async function RsvpQuestionsPage() {
   const activeQuestions = sortByPosition(
     snapshot.questions.filter((q) => !q.archived),
   );
+  const hasDietary = snapshot.questions.some((q) => q.type === "dietary" && !q.archived);
   const archivedQuestions = sortByPosition(
     snapshot.questions.filter((q) => q.archived),
   );
@@ -83,9 +85,16 @@ export default async function RsvpQuestionsPage() {
         title="RSVP questions"
         description="Ask guests for meal choices, dietary requirements, song requests or anything else you need."
         actions={
-          <LinkButton href="/admin/rsvp/questions/new" variant="primary">
-            Add a question
-          </LinkButton>
+          <span className="flex flex-wrap gap-2">
+            {!hasDietary && (
+              <LinkButton href="/admin/rsvp/questions/new?type=dietary" variant="secondary">
+                Ask about dietary requirements
+              </LinkButton>
+            )}
+            <LinkButton href="/admin/rsvp/questions/new" variant="primary">
+              Add a question
+            </LinkButton>
+          </span>
         }
       />
 
@@ -97,9 +106,14 @@ export default async function RsvpQuestionsPage() {
             title="No RSVP questions yet"
             body="Questions are optional. Add one when you want to collect details like meal choices, dietary requirements, or song requests alongside attendance."
             action={
-              <LinkButton href="/admin/rsvp/questions/new" variant="primary">
-                Add a question
-              </LinkButton>
+              <span className="flex flex-wrap justify-center gap-2">
+                <LinkButton href="/admin/rsvp/questions/new?type=dietary" variant="secondary">
+                  Ask about dietary requirements
+                </LinkButton>
+                <LinkButton href="/admin/rsvp/questions/new" variant="primary">
+                  Add a question
+                </LinkButton>
+              </span>
             }
           />
         ) : (
@@ -135,6 +149,14 @@ export default async function RsvpQuestionsPage() {
                           <p className="text-sm text-ink-muted">{summariseQuestion(q, lookups)}</p>
                           {q.type === "choice" && q.options.length > 0 && (
                             <p className="text-xs text-ink-faint">{q.options.map((o) => o.label).join(" · ")}</p>
+                          )}
+                          {q.type === "dietary" && (
+                            <p className="text-xs text-ink-faint">
+                              {DIETARY_NEEDS.map((n) => n.label).join(" · ")} · a note ·{" "}
+                              <Link href="/admin/rsvp/dietary" className="font-medium text-brand hover:underline">
+                                see the totals
+                              </Link>
+                            </p>
                           )}
                         </div>
 
@@ -195,7 +217,7 @@ export default async function RsvpQuestionsPage() {
                             {q.label}
                           </Link>
                           <Badge tone="neutral">
-                            {q.type === "choice" ? "Multiple choice" : "Short answer"}
+                            {q.type === "choice" ? "Multiple choice" : q.type === "dietary" ? "Dietary requirements" : "Short answer"}
                           </Badge>
                           <Badge tone="neutral">
                             {q.scope === "household" ? "Per household" : "Per guest"}
@@ -211,12 +233,16 @@ export default async function RsvpQuestionsPage() {
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <form action={restoreQuestion}>
-                          <input type="hidden" name="id" value={q.id} />
-                          <Button type="submit" variant="secondary" size="sm">
-                            Restore
-                          </Button>
-                        </form>
+                        {q.type === "dietary" && hasDietary ? (
+                          <span className="text-xs text-ink-faint">You already ask about dietary requirements</span>
+                        ) : (
+                          <form action={restoreQuestion}>
+                            <input type="hidden" name="id" value={q.id} />
+                            <Button type="submit" variant="secondary" size="sm">
+                              Restore
+                            </Button>
+                          </form>
+                        )}
                         {answerCount === 0 && (
                           <form action={deleteQuestion}>
                             <input type="hidden" name="id" value={q.id} />

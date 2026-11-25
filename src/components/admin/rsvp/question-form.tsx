@@ -14,7 +14,14 @@ import {
 } from "@/components/ui";
 import type { Audience, QuestionOption, QuestionType } from "@/db/schema";
 import type { ActionState } from "@/lib/forms";
+import { DIETARY_NEEDS } from "@/lib/rsvp/dietary";
 import { eligibleParentQuestions, type ExistingQuestionRef } from "@/lib/rsvp-admin/validation";
+
+const TYPE_TITLES: Record<QuestionType, string> = {
+  choice: "Pick one option",
+  text: "Type an answer",
+  dietary: "Dietary requirements",
+};
 
 /** A select that sits inside a sentence ("Ask [each guest] coming to [Reception]"). */
 const inlineSelect =
@@ -103,9 +110,13 @@ export function QuestionForm({
 
   const isEditing = Boolean(initial.id);
   const typeLocked = isEditing && (answerCount > 0 || childCount > 0);
-  const scopeLocked = isEditing && (answerCount > 0 || childCount > 0);
+  // Dietary requirements are always per guest, so each person is counted.
+  const scopeLocked = (isEditing && (answerCount > 0 || childCount > 0)) || type === "dietary";
+  const otherDietary = allQuestions.some((q) => q.type === "dietary" && !q.archived && q.id !== initial.id);
   const lockReason =
-    answerCount > 0
+    type === "dietary" && !(isEditing && (answerCount > 0 || childCount > 0))
+      ? "dietary requirements are asked of each guest"
+      : answerCount > 0
       ? `this question already has ${answerCount} ${answerCount === 1 ? "answer" : "answers"}`
       : "follow-up questions depend on it";
 
@@ -196,17 +207,20 @@ export function QuestionForm({
           <>
             <input type="hidden" name="type" value={type} />
             <p className="rounded-lg border border-line bg-sunken px-3 py-2 text-sm text-ink">
-              {type === "choice" ? "Pick one option" : "Type an answer"}
+              {TYPE_TITLES[type]}
             </p>
           </>
         ) : (
           <div role="radiogroup" className="flex flex-wrap gap-2">
             {(
               [
-                ["choice", "Pick one option", "e.g. meal choice, yes / no"],
-                ["text", "Type an answer", "e.g. allergies, a song"],
+                ["choice", TYPE_TITLES.choice, "e.g. meal choice, yes / no"],
+                ["text", TYPE_TITLES.text, "e.g. a song request"],
+                ["dietary", TYPE_TITLES.dietary, "tick what applies, tracked per person"],
               ] as const
-            ).map(([value, title, example]) => (
+            )
+              .filter(([value]) => value !== "dietary" || !otherDietary || type === "dietary")
+              .map(([value, title, example]) => (
               <label
                 key={value}
                 className="flex cursor-pointer items-center gap-2 rounded-lg border border-control px-3 py-2 text-sm has-[:checked]:border-brand has-[:checked]:bg-brand-soft"
@@ -217,7 +231,10 @@ export function QuestionForm({
                   name="type"
                   value={value}
                   checked={type === value}
-                  onChange={() => setType(value)}
+                  onChange={() => {
+                    setType(value);
+                    if (value === "dietary") handleScopeChange("guest");
+                  }}
                   className="size-4 accent-brand"
                 />
                 <span>
@@ -291,6 +308,20 @@ export function QuestionForm({
           {state?.errors?.options && (
             <p className="text-sm text-bad">{state.errors.options}</p>
           )}
+        </div>
+      )}
+
+      {type === "dietary" && (
+        <div className="space-y-2 rounded-xl border border-line bg-surface p-4 text-sm">
+          <p className="font-medium text-ink">Guests tick whatever applies to them</p>
+          <p className="text-ink-muted">
+            {DIETARY_NEEDS.map((n) => n.label).join(" · ")} · or “No dietary requirements”. There&apos;s a box for
+            anything else, like how serious an allergy is.
+          </p>
+          <p className="text-ink-muted">
+            Answers are counted on <span className="font-medium text-ink">RSVPs → Dietary</span>, with a chart and a
+            list of who needs what.
+          </p>
         </div>
       )}
 

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `questions_one_dietary` ON `questions` (`wedding_id`) WHERE "questions"."type" = 'dietary' AND "questions"."archived" = 0;

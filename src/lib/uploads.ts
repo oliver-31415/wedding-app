@@ -3,7 +3,7 @@ import { lookup } from "node:dns/promises";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { newId } from "@/lib/ids";
-import { extractProductDetails, type ProductDetails } from "@/lib/gift-admin/product-page";
+import { extractProductDetails, looksLikeBlockedPage, type ProductDetails } from "@/lib/gift-admin/product-page";
 import { MAX_IMAGE_BYTES } from "@/lib/photos-shared";
 import {
   detectImageType,
@@ -81,6 +81,7 @@ export async function readProductPage(
   const page = await safeFetch(pageUrl, MAX_HTML_BYTES, { page: true });
   if (!page.ok) return page;
   const html = new TextDecoder().decode(page.body);
+  if (looksLikeBlockedPage(html)) return { ok: false, error: BLOCKED_ERROR };
   const details = extractProductDetails(html, page.finalUrl);
   details.imageUrl ??= findImageInHtml(html, page.finalUrl);
   return { ok: true, details, finalUrl: page.finalUrl };
@@ -114,6 +115,8 @@ export async function deleteUpload(url: string | null | undefined): Promise<void
 }
 
 // ------------------------------------------------------------ fetching safely
+
+const BLOCKED_ERROR = "That website didn't let us in (it may block automatic requests).";
 
 type FetchResult = { ok: true; body: Uint8Array; finalUrl: string } | { ok: false; error: string };
 
@@ -159,7 +162,7 @@ async function safeFetch(url: string, maxBytes: number, opts: { page?: boolean }
       current = new URL(res.headers.get("location")!, parsed).toString();
       continue;
     }
-    if (!res.ok || !res.body) return { ok: false, error: "That website didn't let us in (it may block automatic requests)." };
+    if (!res.ok || !res.body) return { ok: false, error: BLOCKED_ERROR };
     const declared = Number(res.headers.get("content-length") ?? 0);
     if (declared > maxBytes) return { ok: false, error: "That file is too large." };
     const reader = res.body.getReader();

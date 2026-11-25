@@ -16,11 +16,14 @@ import { db, schema } from "@/db";
 import { describeAudience } from "@/lib/audience";
 import { requireHost } from "@/lib/auth";
 import { formatDateLong, formatTimeRange } from "@/lib/dates";
+import { loadSnapshot } from "@/lib/snapshot";
+import { computeStats } from "@/lib/stats";
+import { GUEST_EVENT_STATUS } from "@/lib/status-words";
 
 export default async function SchedulePage() {
   const { wedding } = await requireHost();
 
-  const [events, tags, schedulePages] = await Promise.all([
+  const [events, tags, schedulePages, snapshot] = await Promise.all([
     db
       .select()
       .from(schema.events)
@@ -35,7 +38,10 @@ export default async function SchedulePage() {
       .from(schema.pages)
       .where(and(eq(schema.pages.weddingId, wedding.id), eq(schema.pages.type, "schedule")))
       .limit(1),
+    loadSnapshot(wedding.id),
   ]);
+  // Each event's RSVP headcount, from the same numbers as the RSVPs page.
+  const headcount = new Map(computeStats(snapshot).events.map((e) => [e.eventId, e]));
 
   const tagNames = new Map(tags.map((t) => [t.id, t.name]));
   const schedulePage = schedulePages[0] ?? null;
@@ -108,6 +114,16 @@ export default async function SchedulePage() {
                     </div>
                     <p className="text-sm text-ink-muted">{dateTimeText}</p>
                     {venueLine && <p className="text-sm text-ink-muted">{venueLine}</p>}
+                    {headcount.get(event.id) && (
+                      <p className="text-sm text-ink-muted">
+                        <Link href="/admin/rsvp" className="font-medium text-ink hover:text-brand hover:underline">
+                          {headcount.get(event.id)!.attending} {GUEST_EVENT_STATUS.attending.label.toLowerCase()}
+                        </Link>
+                        {" · "}
+                        {headcount.get(event.id)!.declined} {GUEST_EVENT_STATUS.declined.label.toLowerCase()} ·{" "}
+                        {headcount.get(event.id)!.pending} {GUEST_EVENT_STATUS.pending.label.toLowerCase()}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">

@@ -24,6 +24,8 @@ import {
   type SnapResponse,
 } from "@/lib/rsvp/model";
 import { inAudience } from "@/lib/audience";
+import type { QuestionType } from "@/db/schema";
+import { DIETARY_NEEDS, dietaryGroup, hasNoNeeds, parseDietary, type DietaryAnswer } from "@/lib/rsvp/dietary";
 
 export type WeddingSnapshot = {
   households: SnapHousehold[];
@@ -54,7 +56,7 @@ export type EventStats = {
 export type QuestionStats = {
   questionId: string;
   label: string;
-  type: "choice" | "text";
+  type: QuestionType;
   scope: "guest" | "household";
   eventId: string | null;
   /** How many guests (or households) this question currently applies to. */
@@ -64,6 +66,19 @@ export type QuestionStats = {
   /** Answers naming an option the couple has since removed (choice questions). */
   removedOptionAnswers: number;
   textAnswers: { who: string; value: string }[];
+  /** Dietary questions only: everyone asked, and the totals built from them. */
+  dietary: DietaryStats | null;
+};
+
+export type DietaryStats = {
+  /** Everyone the question applies to, answered (`answer`) or not yet (null). */
+  people: { guestId: string; householdId: string; who: string; answer: DietaryAnswer | null }[];
+  /** One slice per exact combination of needs, so slices never overlap. Largest first; "No requirements" last. */
+  groups: { key: string; label: string; count: number }[];
+  /** How many people need each item (someone vegan and gluten free counts in both). */
+  needs: { id: string; label: string; count: number }[];
+  /** Answered with at least one need or a note. */
+  withNeeds: number;
 };
 
 export type WeddingStats = {
@@ -175,8 +190,15 @@ export function computeStats(s: WeddingSnapshot): WeddingStats {
       options: q.options.map((o) => ({ id: o.id, label: o.label, count: 0 })),
       removedOptionAnswers: 0,
       textAnswers: [],
+      dietary: q.type === "dietary" ? { people: [], groups: [], needs: [], withNeeds: 0 } : null,
     };
-    const record = (value: string | undefined, who: string) => {
+    const record = (value: string | undefined, who: string, guest?: SnapGuest) => {
+      if (row.dietary && guest) {
+        const answer = value === undefined ? null : parseDietary(value);
+        row.dietary.people.push({ guestId: guest.id, householdId: guest.householdId, who, answer });
+        if (answer) row.answered++;
+        return;
+      }
       if (value === undefined) return;
       row.answered++;
       if (q.type === "choice") {
@@ -206,10 +228,11 @@ export function computeStats(s: WeddingSnapshot): WeddingStats {
         for (const g of members) {
           if (!guestQuestionApplies(q, g, ctx)) continue;
           row.asked++;
-          record(draft.answers.get(answerKey(q.id, g.id)), guestName(g));
+          record(draft.answers.get(answerKey(q.id, g.id)), guestName(g), g);
         }
       }
     }
+    if (row.dietary) summariseDietary(row.dietary);
     return row;
   });
 
@@ -222,6 +245,24 @@ export function computeStats(s: WeddingSnapshot): WeddingStats {
     events,
     questions,
   };
+}
+
+function summariseDietary(d: DietaryStats) {
+  const groups = new Map<string, { key: string; label: string; count: number }>();
+  const needs = new Map<string, number>();
+  for (const p of d.people) {
+    if (!p.answer) continue;
+    if (!hasNoNeeds(p.answer)) d.withNeeds++;
+    const g = dietaryGroup(p.answer);
+    const entry = groups.get(g.key) ?? { ...g, count: 0 };
+    entry.count++;
+    groups.set(g.key, entry);
+    for (const n of p.answer.needs) needs.set(n, (needs.get(n) ?? 0) + 1);
+  }
+  d.groups = [...groups.values()].sort(
+    (a, b) => Number(a.key === "none") - Number(b.key === "none") || b.count - a.count || a.label.localeCompare(b.label),
+  );
+  d.needs = DIETARY_NEEDS.map((n) => ({ id: n.id, label: n.label, count: needs.get(n.id) ?? 0 })).filter((n) => n.count > 0);
 }
 
 /** Guests in an audience (for "this page is visible to N guests" hints). */

@@ -18,6 +18,7 @@ import {
   cn,
 } from "@/components/ui";
 import { saveHostRsvpAction } from "@/app/admin/guests/actions";
+import { DietaryControl } from "@/components/site/rsvp/dietary-control";
 import { GUEST_EVENT_STATUS_META, HOUSEHOLD_STATE_META } from "@/lib/guests/status";
 import {
   answerKey,
@@ -315,6 +316,25 @@ export function HostRsvpEditor({
                       const err = state?.errors?.[errKey];
                       const val = answers[aKey] ?? "";
                       const inputId = `q-${q.id}-${guest.id}`;
+                      if (q.type === "dietary") {
+                        return (
+                          <div key={q.id} className="space-y-1.5">
+                            <p id={`${inputId}-label`} className="text-sm font-medium text-ink">
+                              {q.label}
+                              {!q.required && <span className="ml-1.5 font-normal text-ink-faint">Optional</span>}
+                            </p>
+                            <DietaryControl
+                              id={inputId}
+                              labelledBy={`${inputId}-label`}
+                              value={val}
+                              invalid={!!err}
+                              locked={false}
+                              onChange={(next) => setAnswers((prev) => ({ ...prev, [aKey]: next }))}
+                            />
+                            {err && <p className="text-sm text-bad">{err}</p>}
+                          </div>
+                        );
+                      }
                       return (
                         <Field
                           key={q.id}

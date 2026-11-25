@@ -4,6 +4,7 @@
 import { formatDateLong, formatTimeRange } from "@/lib/dates";
 import {
   answerKey,
+  answerLabel,
   guestEventStatus,
   guestName,
   householdIsAttending,
@@ -56,10 +57,7 @@ export type ConfirmationSummary = {
 };
 
 function resolveDisplayValue(question: SnapQuestion, rawValue: string): string {
-  if (question.type === "choice") {
-    return question.options.find((o) => o.id === rawValue)?.label ?? rawValue;
-  }
-  return rawValue;
+  return answerLabel(question, rawValue);
 }
 
 export function buildConfirmationSummary(args: {

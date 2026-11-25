@@ -1,4 +1,4 @@
-import type { Audience, QuestionOption } from "@/db/schema";
+import type { Audience, QuestionOption, QuestionType } from "@/db/schema";
 
 export type ConditionEventRef = {
   id: string;
@@ -132,7 +132,7 @@ export function formatFollowUpWarning(activeFollowUpLabels: string[]): string | 
  * under the answer that triggers it.
  */
 export function summariseQuestion(
-  question: ConditionSubject & { type: "choice" | "text"; required: boolean },
+  question: ConditionSubject & { type: QuestionType; required: boolean },
   lookups: ConditionLookups,
 ): string {
   const who = question.scope === "household" ? "Once per household" : "Each guest";
@@ -151,7 +151,7 @@ export function summariseQuestion(
     const names = question.audience.tagIds.map((id) => lookups.tagsById.get(id)).filter(Boolean);
     parts.push(names.length ? `tagged ${names.join(" or ")}` : "nobody (its tags were removed)");
   }
-  parts.push(question.type === "choice" ? "pick one" : "typed answer");
+  parts.push(question.type === "choice" ? "pick one" : question.type === "dietary" ? "tick what applies" : "typed answer");
   if (question.required) parts.push("must answer");
   return parts.join(" · ");
 }

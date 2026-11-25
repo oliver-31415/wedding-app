@@ -142,12 +142,19 @@ export default async function EditRsvpQuestionPage({
           <div className="flex flex-wrap items-center gap-3">
             {question.archived ? (
               <>
-                <form action={restoreQuestion}>
-                  <input type="hidden" name="id" value={question.id} />
-                  <Button type="submit" variant="secondary" size="sm">
-                    Restore question
-                  </Button>
-                </form>
+                {question.type === "dietary" &&
+                allQuestions.some((q) => q.type === "dietary" && !q.archived && q.id !== question.id) ? (
+                  <p className="text-sm text-ink-muted">
+                    You already ask about dietary requirements, so this one can&apos;t be restored.
+                  </p>
+                ) : (
+                  <form action={restoreQuestion}>
+                    <input type="hidden" name="id" value={question.id} />
+                    <Button type="submit" variant="secondary" size="sm">
+                      Restore question
+                    </Button>
+                  </form>
+                )}
                 {answerCount === 0 && (
                   <form action={deleteQuestionAndRedirect}>
                     <input type="hidden" name="id" value={question.id} />

@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import { normalizeName } from "@/lib/rsvp/lookup";
 import {
+  answerLabel,
   guestEventStatus,
   householdLabel,
   responsesMap,
@@ -532,10 +533,7 @@ export function buildGuestExportCsv(input: ExportCsvInput): string {
             ? householdAnswers.get(`${q.id}:${h.id}`)
             : guestAnswers.get(`${q.id}:${g.id}`);
         if (raw === undefined) return "";
-        if (q.type === "choice") {
-          return q.options.find((o) => o.id === raw)?.label ?? raw;
-        }
-        return raw;
+        return answerLabel(q, raw);
       });
 
       dataRows.push([

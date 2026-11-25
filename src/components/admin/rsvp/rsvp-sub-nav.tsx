@@ -3,6 +3,7 @@ import { SubNav } from "@/components/ui";
 export const RSVP_NAV_ITEMS = [
   { href: "/admin/rsvp", label: "Responses" },
   { href: "/admin/rsvp/questions", label: "Questions" },
+  { href: "/admin/rsvp/dietary", label: "Dietary" },
   { href: "/admin/rsvp/settings", label: "Settings" },
   { href: "/admin/rsvp/activity", label: "Activity" },
 ];

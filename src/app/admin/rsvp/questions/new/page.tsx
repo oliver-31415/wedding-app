@@ -4,11 +4,12 @@ import { BackLink, Card, CardBody, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { EVERYONE } from "@/lib/audience";
 import { requireHost } from "@/lib/auth";
+import { DEFAULT_DIETARY_LABEL } from "@/lib/rsvp/dietary";
 import { createQuestion } from "../actions";
 
 export default async function NewRsvpQuestionPage({ searchParams }: PageProps<"/admin/rsvp/questions/new">) {
   const { wedding } = await requireHost();
-  const { parent: parentParam } = await searchParams;
+  const { parent: parentParam, type: typeParam } = await searchParams;
 
   const [allQuestions, events, weddingTags] = await Promise.all([
     db
@@ -38,10 +39,14 @@ export default async function NewRsvpQuestionPage({ searchParams }: PageProps<"/
       ? allQuestions.find((q) => q.id === parentParam && !q.archived && q.type === "choice")
       : undefined;
 
+  // "Ask about dietary requirements" starts from the ready-made checklist.
+  const dietary =
+    !parent && typeParam === "dietary" && !allQuestions.some((q) => q.type === "dietary" && !q.archived);
+
   return (
     <div>
       <PageHeader
-        title={parent ? "Add a follow-up" : "Add a question"}
+        title={parent ? "Add a follow-up" : dietary ? "Ask about dietary requirements" : "Add a question"}
         description={
           parent
             ? `Asked after “${parent.label}”, only when guests give the answer you choose below.`
@@ -57,11 +62,12 @@ export default async function NewRsvpQuestionPage({ searchParams }: PageProps<"/
           <QuestionForm
             action={createQuestion}
             initial={{
-              label: "",
+              label: dietary ? DEFAULT_DIETARY_LABEL : "",
               // Follow-ups are usually "tell us more", so they start as typed answers.
-              type: parent ? "text" : "choice",
+              type: dietary ? "dietary" : parent ? "text" : "choice",
               options: [],
-              required: false,
+              // Everyone answering (even "none") is what makes the totals complete.
+              required: dietary,
               scope: parent?.scope ?? "guest",
               eventId: null,
               parentQuestionId: parent?.id ?? null,
