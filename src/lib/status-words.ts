@@ -37,3 +37,18 @@ export const PAGE_VISIBILITY: Record<PageVisibility, Word & { hint: string }> = 
   },
   hidden: { label: "Hidden", tone: "neutral", hint: "Only you can see this page while previewing." },
 };
+
+// ---------------------------------------------------------------- planning tools
+
+export const VENDOR_STATUS: Record<"considering" | "booked", Word> = {
+  booked: { label: "Booked", tone: "good" },
+  considering: { label: "Considering", tone: "neutral" },
+};
+
+export const PAYMENT_STATE: Record<"paid" | "overdue" | "due_soon" | "upcoming" | "no_date", Word> = {
+  paid: { label: "Paid", tone: "good" },
+  overdue: { label: "Overdue", tone: "bad" },
+  due_soon: { label: "Due soon", tone: "warn" },
+  upcoming: { label: "Upcoming", tone: "neutral" },
+  no_date: { label: "No due date", tone: "neutral" },
+};

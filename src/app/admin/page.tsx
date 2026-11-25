@@ -12,11 +12,15 @@ import {
   SetupChecklistCard,
   type ActivityItem,
 } from "@/components/admin/dashboard/sections";
+import { BudgetCard, ChecklistCard, PaymentsDueCard } from "@/components/admin/dashboard/planning";
 import { AttendingTile, AwaitingTile, ResponseRateTile } from "@/components/admin/rsvp-stats";
 import { PageHeader, StatGrid, StatTile } from "@/components/ui";
 import { db, schema } from "@/db";
 import { requireHost } from "@/lib/auth";
+import { todayIn } from "@/lib/dates";
 import { computeGiftSummary } from "@/lib/gifts";
+import { paymentState, taskGroup, upcomingPayments } from "@/lib/planning";
+import { loadBudgetData, loadHosts } from "@/lib/planning-data";
 import { loadGiftData } from "@/lib/gifts-data";
 import { householdLabel, type SnapGuest } from "@/lib/rsvp/model";
 import { loadSnapshot } from "@/lib/snapshot";
@@ -29,7 +33,7 @@ export const metadata: Metadata = {
 export default async function DashboardPage() {
   const { user, wedding } = await requireHost();
 
-  const [snapshot, giftData, weddingPages, activityRows] = await Promise.all([
+  const [snapshot, giftData, weddingPages, activityRows, budget, tasks, hosts] = await Promise.all([
     loadSnapshot(wedding.id),
     loadGiftData(wedding.id),
     db
@@ -43,7 +47,23 @@ export default async function DashboardPage() {
       .where(eq(schema.rsvpActivity.weddingId, wedding.id))
       .orderBy(desc(schema.rsvpActivity.createdAt))
       .limit(6),
+    loadBudgetData(wedding),
+    db.select().from(schema.tasks).where(eq(schema.tasks.weddingId, wedding.id)),
+    loadHosts(wedding.id),
   ]);
+
+  const today = todayIn(wedding.timeZone);
+  const vendorName = new Map(budget.vendors.map((v) => [v.id, v.name]));
+  const dueSoon = upcomingPayments(budget.payments)
+    .filter((p) => ["overdue", "due_soon"].includes(paymentState(p, today)))
+    .slice(0, 5)
+    .map((p) => ({ ...p, vendorName: vendorName.get(p.vendorId) ?? "Vendor" }));
+  const thisWeek = tasks
+    .map((t) => ({ ...t, group: taskGroup(t, today) }))
+    .filter((t) => t.group === "overdue" || t.group === "this_week")
+    .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))
+    .slice(0, 6)
+    .map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, assigneeId: t.assigneeId, overdue: t.group === "overdue" }));
 
   const stats = computeStats(snapshot);
   const giftSummary = computeGiftSummary(giftData);
@@ -97,6 +117,17 @@ export default async function DashboardPage() {
         <AttendingTile stats={stats} href="/admin/rsvp" />
         <AwaitingTile stats={stats} href="/admin/rsvp" />
       </StatGrid>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <ChecklistCard
+          tasks={thisWeek}
+          done={tasks.filter((t) => t.doneAt).length}
+          total={tasks.length}
+          hostName={new Map(hosts.map((h) => [h.id, h.name]))}
+        />
+        <BudgetCard summary={budget.summary} currency={wedding.currency} />
+        <PaymentsDueCard payments={dueSoon} today={today} currency={wedding.currency} />
+      </div>
 
       <EventStatsSection events={stats.events} />
 

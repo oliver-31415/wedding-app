@@ -16,7 +16,8 @@ cleverness: every screen should look and behave like the others.
 2. **Out of scope** (do not build, do not link to): travel, where to stay /
    hotels, video (never served, in any form — no GIFs either), albums, guest
    photo uploads, a shop, syncing other registries, printed stationery,
-   SMS/WhatsApp, seating charts, multiple languages, custom CSS, a mobile app,
+   SMS/WhatsApp, seating charts on the guest site (the host-only plan in
+   `/admin/seating` is fine), multiple languages, custom CSS, a mobile app,
    AI writing help, announcement banners, countdowns.
    **Photos are curated, not an album:** one cover photo (Home page), one per
    story milestone (up to 8) and wedding-party member (up to 12), and an
@@ -236,6 +237,7 @@ Admin (`/admin/…`, inside the shell in `src/app/admin/layout.tsx`):
 | `/admin/rsvp/**` | RSVP admin |
 | `/admin/messages/**`, `/admin/dev/outbox`, `src/lib/messaging/render.ts` | Messaging |
 | `/admin/gifts/**` | Gifts |
+| `/admin/checklist`, `/admin/budget/**`, `/admin/seating`, `/admin/day-of/**` | Planning |
 
 Shared site components go in `src/components/site/`, admin ones in
 `src/components/admin/<area>/`.
@@ -353,3 +355,23 @@ read from it. Change wording there, nowhere else.
   (`requireVerifiedUser()`; `requireHost()` includes it). Single-use links for
   confirming and resetting passwords: `src/lib/account-emails.ts`.
 - Co-host invites only work for the address they were sent to.
+
+## Planning tools (host only)
+
+Checklist, Budget & vendors (budget categories, vendors, vendor payments),
+Seating and Day of (run sheet, music). None of it is ever shown on the guest
+site. Pure rules and every planning number live in `src/lib/planning.ts`
+(`computeBudget`, `paymentState`, `groupTasks`, `suggestedTasks`,
+`seatingCandidates`, `sortRunSheet`); data loading in `src/lib/planning-data.ts`.
+- **Budget:** only *booked* vendors count. A vendor costs the larger of its
+  quote and its scheduled payments. "Forecast left" = total budget minus, per
+  category, the larger of the estimate and what's booked.
+- **Payments:** `paidOn` is the date ticked paid. "Due soon" = within
+  `DUE_SOON_DAYS` (14); the dashboard lists overdue and due-soon payments.
+- **Suggested content is opt-in.** Suggested budget categories and checklist
+  tasks are only added when the couple clicks the button; tasks get due dates
+  worked back from the wedding date (never in the past) and skip titles the
+  couple already has.
+- **Seating** lists every guest except those who declined every event they
+  were asked about (same RSVP rules as the stats); dietary needs come from
+  `computeStats`. Status words for vendors and payments are in `status-words.ts`.

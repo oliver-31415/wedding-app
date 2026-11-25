@@ -126,6 +126,9 @@ export const weddings = sqliteTable("weddings", {
    */
   contactCollectorToken: text("contact_collector_token").unique(),
 
+  /** Overall budget for the planning tools (host only). Null = not set. */
+  budgetCents: integer("budget_cents"),
+
   createdAt: createdAt(),
 });
 
@@ -718,6 +721,152 @@ export const outbox = sqliteTable("outbox", {
   text: text("text").notNull(),
   createdAt: createdAt(),
 });
+
+// ---------------------------------------------------------------- planning
+// Host-only planning tools. Nothing here ever appears on the guest site.
+
+/** A budget line the couple plans for, e.g. "Venue" with an estimate. */
+export const budgetCategories = sqliteTable(
+  "budget_categories",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    name: text("name").notNull(),
+    /** What the couple expects to spend; null = not estimated yet. */
+    estimateCents: integer("estimate_cents"),
+    position: position(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("budget_categories_wedding").on(t.weddingId)],
+);
+
+export const VENDOR_STATUSES = ["considering", "booked"] as const;
+export type VendorStatus = (typeof VENDOR_STATUSES)[number];
+
+export const vendors = sqliteTable(
+  "vendors",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    name: text("name").notNull(),
+    /** Which budget line this vendor's payments count towards. */
+    categoryId: text("category_id").references(() => budgetCategories.id, { onDelete: "set null" }),
+    status: text("status", { enum: VENDOR_STATUSES }).notNull().default("considering"),
+    contactName: text("contact_name"),
+    email: text("email"),
+    phone: text("phone"),
+    website: text("website"),
+    /** Quoted total for the whole booking; payments are what's scheduled against it. */
+    quoteCents: integer("quote_cents"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("vendors_wedding").on(t.weddingId)],
+);
+
+/** A deposit, instalment or final balance owed to a vendor. */
+export const vendorPayments = sqliteTable(
+  "vendor_payments",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    vendorId: text("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    /** "YYYY-MM-DD" or null when no date is agreed. */
+    dueDate: text("due_date"),
+    /** "YYYY-MM-DD" the couple marked it paid; null = still to pay. */
+    paidOn: text("paid_on"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("vendor_payments_wedding").on(t.weddingId), index("vendor_payments_vendor").on(t.vendorId)],
+);
+
+/** Checklist to-do. */
+export const tasks = sqliteTable(
+  "tasks",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    title: text("title").notNull(),
+    notes: text("notes"),
+    /** "YYYY-MM-DD" or null. */
+    dueDate: text("due_date"),
+    /** One of the hosts, or null = anyone. */
+    assigneeId: text("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    doneAt: integer("done_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("tasks_wedding").on(t.weddingId)],
+);
+
+/** A reception table for the seating plan. */
+export const seatingTables = sqliteTable(
+  "seating_tables",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    name: text("name").notNull(),
+    capacity: integer("capacity").notNull().default(10),
+    notes: text("notes"),
+    position: position(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("seating_tables_wedding").on(t.weddingId)],
+);
+
+/** Which table a guest sits at. One row per seated guest. */
+export const seatAssignments = sqliteTable(
+  "seat_assignments",
+  {
+    guestId: text("guest_id")
+      .primaryKey()
+      .references(() => guests.id, { onDelete: "cascade" }),
+    weddingId: weddingId(),
+    tableId: text("table_id")
+      .notNull()
+      .references(() => seatingTables.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("seat_assignments_wedding").on(t.weddingId), index("seat_assignments_table").on(t.tableId)],
+);
+
+/** One line of the wedding-day run sheet. */
+export const runSheetItems = sqliteTable(
+  "run_sheet_items",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    /** "HH:mm" on the wedding day; null = untimed (listed last). */
+    time: text("time"),
+    title: text("title").notNull(),
+    location: text("location"),
+    /** Who's responsible / involved, e.g. "Photographer, bridal party". */
+    who: text("who"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("run_sheet_items_wedding").on(t.weddingId)],
+);
+
+/** Songs for the DJ / band: must-plays per moment and do-not-plays. */
+export const songs = sqliteTable(
+  "songs",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    /** e.g. "First dance", "Walking down the aisle"; null = general request. */
+    moment: text("moment"),
+    title: text("title").notNull(),
+    artist: text("artist"),
+    doNotPlay: integer("do_not_play", { mode: "boolean" }).notNull().default(false),
+    notes: text("notes"),
+    position: position(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("songs_wedding").on(t.weddingId)],
+);
 
 // ---------------------------------------------------------------- relations
 

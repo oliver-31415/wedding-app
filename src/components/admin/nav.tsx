@@ -6,10 +6,14 @@ import { cn } from "@/components/ui";
 
 export const ADMIN_NAV = [
   { href: "/admin", label: "Dashboard", exact: true },
-  { href: "/admin/website", label: "Website" },
-  { href: "/admin/schedule", label: "Schedule" },
+  { href: "/admin/checklist", label: "Checklist" },
+  { href: "/admin/budget", label: "Budget & vendors" },
   { href: "/admin/guests", label: "Guests" },
   { href: "/admin/rsvp", label: "RSVPs" },
+  { href: "/admin/seating", label: "Seating" },
+  { href: "/admin/schedule", label: "Schedule" },
+  { href: "/admin/day-of", label: "Day of" },
+  { href: "/admin/website", label: "Website" },
   { href: "/admin/messages", label: "Messages" },
   { href: "/admin/gifts", label: "Gift list" },
   { href: "/admin/settings", label: "Settings" },

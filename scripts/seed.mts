@@ -243,4 +243,66 @@ await db.insert(schema.cashFunds).values({
 });
 await db.insert(schema.fundContributions).values({ id: newId(), weddingId, fundId: fund, giverName: "Grace Liu", amountCents: 20000, message: "For the onsen!", received: true });
 
+// planning tools (host only)
+await db.update(schema.weddings).set({ budgetCents: 4_000_000 }).where(eq(schema.weddings.id, weddingId));
+const cat = async (position: number, name: string, estimateCents: number) => {
+  const id = newId();
+  await db.insert(schema.budgetCategories).values({ id, weddingId, name, estimateCents, position });
+  return id;
+};
+const venueCat = await cat(0, "Venue", 1_500_000);
+const cateringCat = await cat(1, "Catering & drinks", 1_200_000);
+const photoCat = await cat(2, "Photography & video", 450_000);
+const flowersCat = await cat(3, "Flowers & styling", 250_000);
+await cat(4, "Attire & rings", 500_000);
+const vendor = async (v: Omit<typeof schema.vendors.$inferInsert, "id" | "weddingId">) => {
+  const id = newId();
+  await db.insert(schema.vendors).values({ id, weddingId, ...v });
+  return id;
+};
+const hartley = await vendor({ name: "Hartley Estate", categoryId: venueCat, status: "booked", quoteCents: 1_400_000, contactName: "Jo Hartley", phone: "02 4861 0000", website: "https://example.com" });
+const cedar = await vendor({ name: "Cedar & Vine Catering", categoryId: cateringCat, status: "booked", quoteCents: 1_320_000, contactName: "Marco" });
+const wild = await vendor({ name: "Wildbloom Florals", categoryId: flowersCat, status: "booked", quoteCents: 169_000 });
+await vendor({ name: "Golden Hour Photography", categoryId: photoCat, status: "considering", quoteCents: 420_000, notes: "8 hours, second shooter, online gallery." });
+await vendor({ name: "Lens & Light Studio", categoryId: photoCat, status: "considering", quoteCents: 380_000 });
+const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+await db.insert(schema.vendorPayments).values([
+  { id: newId(), weddingId, vendorId: hartley, label: "Deposit", amountCents: 700_000, dueDate: inDays(-120), paidOn: inDays(-120) },
+  { id: newId(), weddingId, vendorId: hartley, label: "Final balance", amountCents: 700_000, dueDate: inDays(14) },
+  { id: newId(), weddingId, vendorId: cedar, label: "Deposit", amountCents: 330_000, dueDate: inDays(-60), paidOn: inDays(-58) },
+  { id: newId(), weddingId, vendorId: cedar, label: "Progress payment", amountCents: 330_000, dueDate: inDays(9) },
+  { id: newId(), weddingId, vendorId: cedar, label: "Final balance", amountCents: 660_000, dueDate: "2027-03-01" },
+  { id: newId(), weddingId, vendorId: wild, label: "Full payment", amountCents: 169_000, dueDate: inDays(-2) },
+]);
+await db.insert(schema.tasks).values([
+  { id: newId(), weddingId, title: "Book the venue", dueDate: inDays(-150), doneAt: new Date(Date.now() - 140 * 86_400_000) },
+  { id: newId(), weddingId, title: "Book photographer", dueDate: inDays(3), assigneeId: userId },
+  { id: newId(), weddingId, title: "Send save-the-dates", dueDate: inDays(5) },
+  { id: newId(), weddingId, title: "Final menu tasting", dueDate: inDays(-1), notes: "Ask about the kids' menu." },
+  { id: newId(), weddingId, title: "Lodge the Notice of Intended Marriage (at least one month before)", dueDate: "2026-12-13" },
+  { id: newId(), weddingId, title: "Write vows and speeches", dueDate: "2027-02-13" },
+]);
+const table = async (position: number, name: string, capacity: number, notes: string | null = null) => {
+  const id = newId();
+  await db.insert(schema.seatingTables).values({ id, weddingId, name, capacity, notes, position });
+  return id;
+};
+const head = await table(0, "Head table", 8, "Facing the room");
+await table(1, "Table 1", 10);
+await table(2, "Table 2", 10);
+const seededGuests = await db.select().from(schema.guests).where(eq(schema.guests.weddingId, weddingId));
+await db.insert(schema.seatAssignments).values(seededGuests.slice(0, 3).map((g) => ({ guestId: g.id, weddingId, tableId: head })));
+await db.insert(schema.runSheetItems).values([
+  { id: newId(), weddingId, time: "09:00", title: "Hair and makeup", location: "Bridal suite", who: "Wedding party" },
+  { id: newId(), weddingId, time: "15:00", title: "Ceremony begins", location: "Garden lawn", who: "Celebrant, photographer" },
+  { id: newId(), weddingId, time: "15:45", title: "Group photos", location: "Vineyard rows", who: "Photographer — family list in notes", notes: "Immediate family first, then wedding party." },
+  { id: newId(), weddingId, time: "18:00", title: "Reception doors open", location: "Barrel hall" },
+  { id: newId(), weddingId, time: "21:00", title: "First dance", who: "DJ" },
+]);
+await db.insert(schema.songs).values([
+  { id: newId(), weddingId, moment: "Walking down the aisle", title: "Canon in D", artist: "Pachelbel", position: 0 },
+  { id: newId(), weddingId, moment: "First dance", title: "La Vie en rose", artist: "Louis Armstrong", position: 1 },
+  { id: newId(), weddingId, title: "Macarena", artist: "Los del Río", doNotPlay: true, position: 2 },
+]);
+
 console.log("Seeded demo wedding /w/alex-and-sam — sign in as demo@example.com / wedding-demo (site password: bowral)");
