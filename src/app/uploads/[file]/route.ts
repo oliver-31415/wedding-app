@@ -1,6 +1,6 @@
 import { CONTENT_TYPE, readUpload } from "@/lib/uploads";
 
-/** Serves stored pictures (gifts and photos). File names are random ids, so they're safe to cache forever. */
+/** Serves stored uploads (gift pictures, photos, sheet music PDFs). File names are random ids, so they're safe to cache forever. */
 export async function GET(_req: Request, { params }: { params: Promise<{ file: string }> }) {
   const { file } = await params;
   const bytes = await readUpload(file);

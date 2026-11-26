@@ -87,7 +87,10 @@ cleverness: every screen should look and behave like the others.
   site is a draft, noindex) showing only their jobs, grouped by run sheet
   item, and the names and roles of others on them, never anyone's contact
   details. Admin: Day of → Run sheet (jobs under each item, printable) ·
-  Helpers (links, emails) · Music.
+  Helpers (links, emails) · Music. Each song can list its instruments
+  (`song_parts`), each with an optional sheet music PDF (15 MB max, checked
+  by its `%PDF-` header, stored like pictures; removing the instrument or the
+  song deletes the file).
 - **Visual editor** (`/editor/[pageId]`): the guest page in an iframe with
   `?edit=1`. Editable parts carry `editAttrs(...)` from `src/lib/edit-targets.ts`
   (hosts only); `EditBridge` turns clicks into messages that open the matching
@@ -336,8 +339,11 @@ adults only, plus `householdsWithoutEmail`.
 wrapper for the chosen theme (`--color-accent` and, per theme, the canvas /
 surface / ink / line tokens). Guest-site components (RSVP, gifts) use the
 token classes (`text-ink`, `bg-surface`, `border-line`, `bg-accent`,
-`text-accent`, `font-serif`) and never hard-coded colours, so they follow the
-couple's theme automatically.
+`text-accent-strong`, `font-serif`) and never hard-coded colours, so they follow the
+couple's theme automatically. Text in the accent colour uses
+`text-accent-strong`, never `text-accent`: a pale accent (pastel pink) is
+deepened there so it stays readable, while fills and borders keep the chosen
+colour.
 
 **Freshness.** Pages are rendered per request (Cache Components is off).
 After a write, call `revalidateWedding()` (`src/lib/revalidate.ts`), which
@@ -375,7 +381,12 @@ on the site wrapper plus `data-style`; page bodies get the spec via
 `bg-surface`, `border-line`, `bg-accent`, `text-accent-ink`, `font-serif`,
 `rounded-[var(--radius-card)]`) so all five styles work automatically.
 Hosts can preview any style with `?style=<id>&accent=%23rrggbb&embed=1`;
-those parameters are ignored for guests.
+those parameters are ignored for guests. Garden's tinted paper takes the hue
+of a custom accent (`paletteForAccent`), so a pink accent gets blush paper.
+
+The browser-tab icon is the couple's initials on their accent colour
+(`src/lib/couple-icon.tsx`, served by `icon.tsx` in `w/[slug]` and `admin`;
+the root `icon.tsx` is a plain circle for sign-in pages).
 
 ## Status words
 

@@ -872,6 +872,26 @@ export const songs = sqliteTable(
   (t) => [index("songs_wedding").on(t.weddingId)],
 );
 
+/** An instrument playing a song (violin, cello…), with its sheet music PDF if the couple uploads one. */
+export const songParts = sqliteTable(
+  "song_parts",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    songId: text("song_id")
+      .notNull()
+      .references(() => songs.id, { onDelete: "cascade" }),
+    instrument: text("instrument").notNull(),
+    /** /uploads/<id>.pdf, or null before any sheet music is added. */
+    sheetUrl: text("sheet_url"),
+    /** The uploaded file's own name, for the link and the download. */
+    sheetName: text("sheet_name"),
+    position: position(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("song_parts_wedding").on(t.weddingId), index("song_parts_song").on(t.songId)],
+);
+
 /**
  * One row per email this server sends (or stores in the dev outbox), so
  * bulk sends can stay under the email provider's daily and monthly limits.

@@ -85,7 +85,7 @@ export function NameCheckRequest({
       <button
         type="submit"
         disabled={pending || !hasName}
-        className="inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-accent px-6 py-2 text-base font-medium text-accent transition-colors hover:bg-accent hover:text-accent-ink disabled:pointer-events-none disabled:opacity-50"
+        className="inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-accent px-6 py-2 text-base font-medium text-accent-strong transition-colors hover:bg-accent hover:text-accent-ink disabled:pointer-events-none disabled:opacity-50"
       >
         {pending ? "Sending…" : `Ask ${couple} to check`}
       </button>

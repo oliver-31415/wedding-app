@@ -5,6 +5,7 @@ import path from "node:path";
 import { newId } from "@/lib/ids";
 import { extractProductDetails, looksLikeBlockedPage, type ProductDetails } from "@/lib/gift-admin/product-page";
 import { MAX_IMAGE_BYTES } from "@/lib/photos-shared";
+import { MAX_SHEET_BYTES } from "@/lib/planning";
 import {
   detectImageType,
   findImageInHtml,
@@ -16,7 +17,7 @@ import {
 } from "./uploads-shared";
 
 /**
- * Image storage for gift pictures and photos. Files live in UPLOAD_DIR (default
+ * Image storage for gift pictures and photos (and sheet music PDFs). Files live in UPLOAD_DIR (default
  * ./data/uploads, next to the database — back both up together) and are
  * served from /uploads/<file>. Remote images are always downloaded and stored,
  * never hotlinked, so pictures don't break when a shop changes its site.
@@ -26,8 +27,14 @@ const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? "./data/uploads");
 // Product pages can put their product data well down the page.
 const MAX_HTML_BYTES = 3 * 1024 * 1024;
 const EXT: Record<ImageType, string> = { jpeg: "jpg", png: "png", webp: "webp", gif: "gif" };
-export const CONTENT_TYPE: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
-export const UPLOAD_FILE_RE = /^[A-Za-z0-9_-]{8,40}\.(jpg|png|webp|gif)$/;
+export const CONTENT_TYPE: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  pdf: "application/pdf",
+};
+export const UPLOAD_FILE_RE = /^[A-Za-z0-9_-]{8,40}\.(jpg|png|webp|gif|pdf)$/;
 
 export type ImageResult = { ok: true; url: string; width: number; height: number } | { ok: false; error: string };
 
@@ -62,6 +69,19 @@ export async function saveUploadedImage(file: File, opts: { photo?: boolean } = 
   if (file.size === 0) return { ok: false, error: opts.photo ? "Choose a photo to upload." : "Choose a picture to upload." };
   if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: "That picture is too large (5 MB max)." };
   return saveImage(new Uint8Array(await file.arrayBuffer()), opts);
+}
+
+/** Sheet music: a PDF from a <input type="file">, checked by its contents, not its name. */
+export async function saveUploadedPdf(file: File): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  if (file.size === 0) return { ok: false, error: "Choose a PDF to upload." };
+  const limitMb = MAX_SHEET_BYTES / 1024 / 1024;
+  if (file.size > MAX_SHEET_BYTES) return { ok: false, error: `That PDF is too large (${limitMb} MB max).` };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-") return { ok: false, error: "That file isn't a PDF." };
+  const name = `${newId()}.pdf`;
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  await writeFile(path.join(UPLOAD_DIR, name), bytes);
+  return { ok: true, url: `/uploads/${name}` };
 }
 
 /** Downloads a picture from the web and stores it. */

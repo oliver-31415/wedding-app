@@ -45,7 +45,7 @@ function BotanicalSprig() {
     <svg
       aria-hidden="true"
       viewBox="0 0 120 20"
-      className="mx-auto mb-4 h-5 w-28 text-accent opacity-75"
+      className="mx-auto mb-4 h-5 w-28 text-accent-strong opacity-75"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.2"
@@ -81,7 +81,7 @@ function HostPreviewBanner({ resolved }: { resolved: ResolvedSiteStyle }) {
         <span>Preview — only you can see this until you publish. </span>
         <Link
           href="/admin"
-          className="font-medium text-accent underline underline-offset-2"
+          className="font-medium text-accent-strong underline underline-offset-2"
         >
           Back to admin
         </Link>
@@ -257,7 +257,7 @@ export function SiteShellView({
             <Link href={homeHref} className="inline-block">
               <span {...namesAttrs} className="font-serif text-4xl font-normal tracking-tight text-ink sm:text-6xl">
                 {partnerOne}{" "}
-                <span className="text-accent italic">&amp;</span>{" "}
+                <span className="text-accent-strong italic">&amp;</span>{" "}
                 {partnerTwo}
               </span>
             </Link>
@@ -288,7 +288,7 @@ export function SiteShellView({
                 <Link href={homeHref} className="block">
                   <span {...namesAttrs} className="block font-serif text-3xl leading-[1.06] font-normal tracking-tight text-ink md:text-5xl">
                     <span className="md:block">{partnerOne}</span>{" "}
-                    <span className="text-accent italic md:my-0.5 md:block md:text-3xl">&amp;</span>{" "}
+                    <span className="text-accent-strong italic md:my-0.5 md:block md:text-3xl">&amp;</span>{" "}
                     <span className="md:block">{partnerTwo}</span>
                   </span>
                 </Link>

@@ -52,6 +52,8 @@ export type SiteStyleSpec = {
   defaultAccent: string;
   defaultAccentName: string;
   palette: SitePalette;
+  /** Tinted paper that takes the hue of a custom accent (see paletteForAccent). */
+  tintsToAccent?: boolean;
   fonts: {
     heading: string;
     body: string;
@@ -161,10 +163,11 @@ export const SITE_STYLES: Record<SiteStyleId, SiteStyleSpec> = {
   garden: {
     id: "garden",
     name: "Garden",
-    description: "Soft sage paper, full-width botanical hero band, pill nav and timeline schedule.",
+    description: "Soft paper in your colour (sage by default), full-width hero band, pill nav and timeline schedule.",
     layoutSummary: "Hero band · Vertical timeline",
     defaultAccent: "#355e3b",
     defaultAccentName: "Eucalyptus",
+    tintsToAccent: true,
     palette: {
       canvas: "#f2f6ef",
       surface: "#fbfdf9",
@@ -392,6 +395,82 @@ export function pickAccentInk(accentHex: string): "#ffffff" | "#111111" {
   return contrastRatio(norm, "#ffffff") >= contrastRatio(norm, "#111111") ? "#ffffff" : "#111111";
 }
 
+// ------------------------------------------------------------ accent-derived colours
+
+type Hsl = [number, number, number];
+
+function hexToHsl(hex: string): Hsl {
+  const [r, g, b] = parseHexRgb(hex).map((c) => c / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(h * 60 + 360) % 360, s, l];
+}
+
+function hslToHex([h, s, l]: Hsl): string {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] =
+    h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return `#${[r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * The style's palette for this accent. A style with tinted paper (Garden)
+ * takes the accent's hue, so a pink accent gets blush paper rather than sage.
+ * Its own default accent, and grey accents, keep the palette as designed.
+ */
+export function paletteForAccent(style: SiteStyleSpec, accent: string): SitePalette {
+  const { palette } = style;
+  if (!style.tintsToAccent || accent === style.defaultAccent) return palette;
+  const [hue, saturation] = hexToHsl(accent);
+  if (saturation < 0.12) return palette;
+  // Pale paper takes some of the accent's saturation too, so it reads as blush, not grey.
+  const tint = (hex: string) => {
+    const [, s, l] = hexToHsl(hex);
+    return hslToHex([hue, l > 0.8 ? Math.max(s, saturation * 0.6) : s, l]);
+  };
+  return {
+    canvas: tint(palette.canvas),
+    surface: tint(palette.surface),
+    sunken: tint(palette.sunken),
+    line: tint(palette.line),
+    lineStrong: tint(palette.lineStrong),
+    control: tint(palette.control),
+    ink: tint(palette.ink),
+    inkMuted: tint(palette.inkMuted),
+    inkFaint: tint(palette.inkFaint),
+    accentInk: palette.accentInk,
+  };
+}
+
+/**
+ * The accent as a text colour: the chosen colour when it already reads at
+ * 4.5:1 on every background, otherwise a deeper shade of the same hue (a
+ * pastel pink becomes a rose) so links, headings and the monogram stay legible.
+ */
+export function readableAccent(accent: string, backgrounds: string[]): string {
+  const passes = (hex: string) => backgrounds.every((bg) => contrastRatio(hex, bg) >= 4.5);
+  if (passes(accent)) return accent;
+  const [h, s, l] = hexToHsl(accent);
+  for (let light = Math.min(l, 0.6); light > 0; light -= 0.01) {
+    const hex = hslToHex([h, Math.min(s, 0.65), light]);
+    if (passes(hex)) return hex;
+  }
+  return "#111111";
+}
+
+/** "B" and "O" for Brendan & Olivia; empty names give an empty initial. */
+export function coupleInitials(partnerOne: string, partnerTwo: string): [string, string] {
+  const initial = (name: string) => (Array.from(name.trim())[0] ?? "").toLocaleUpperCase();
+  return [initial(partnerOne), initial(partnerTwo)];
+}
+
 // ------------------------------------------------------------ preview resolution
 
 export type ResolvedSiteStyle = {
@@ -460,12 +539,14 @@ export function resolveSiteStyle(input: {
 /**
  * Builds the inline CSS custom properties applied to the guest-site wrapper so
  * Tailwind token classes (bg-surface, text-ink, border-line, bg-accent,
- * text-accent, font-serif, font-sans, rounded-[var(--radius-card)]) resolve
+ * text-accent-strong, font-serif, font-sans, rounded-[var(--radius-card)]) resolve
  * to the chosen preset automatically across every guest-site component.
  */
 export function buildSiteStyleVars(resolved: Pick<ResolvedSiteStyle, "style" | "accent" | "accentInk">): CSSProperties {
   const { style, accent, accentInk } = resolved;
-  const { palette, fonts, layout } = style;
+  const { fonts, layout } = style;
+  const palette = paletteForAccent(style, accent);
+  const accentStrong = readableAccent(accent, [palette.canvas, palette.surface, palette.sunken]);
   const accentSoft = `color-mix(in srgb, ${accent} 10%, transparent)`;
 
   return {
@@ -482,9 +563,11 @@ export function buildSiteStyleVars(resolved: Pick<ResolvedSiteStyle, "style" | "
     "--color-accent": accent,
     "--color-accent-ink": accentInk,
     "--color-accent-soft": accentSoft,
+    // Text in the accent colour (text-accent-strong): a deeper shade when the accent is too pale to read
+    "--color-accent-strong": accentStrong,
     // Keep UI-kit controls & focus rings inside the guest site matched to the wedding accent
-    "--color-brand": accent,
-    "--color-brand-strong": `color-mix(in srgb, ${accent} 84%, black)`,
+    "--color-brand": accentStrong,
+    "--color-brand-strong": `color-mix(in srgb, ${accentStrong} 84%, black)`,
     "--color-brand-soft": accentSoft,
     // Neutral badges (Child, Plus-one) sit on the style's own grey, not the admin's
     "--color-neutral-soft": palette.sunken,

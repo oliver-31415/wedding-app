@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import { saveRunItemAction, saveSongAction } from "@/app/admin/day-of/actions";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { savePartAction, saveRunItemAction, saveSongAction } from "@/app/admin/day-of/actions";
 import { Button, Checkbox, Field, FormMessage, Input, SubmitButton, Textarea } from "@/components/ui";
+import { MAX_SHEET_BYTES } from "@/lib/planning";
 
 function useResetOnAdd(state: { ok?: boolean } | null, isEdit: boolean) {
   const ref = useRef<HTMLFormElement>(null);
@@ -79,6 +80,64 @@ export function SongForm({ song, moments }: { song?: Song; moments: string[] }) 
       <FormMessage state={state} />
       <SubmitButton variant={song ? "secondary" : "primary"} size={song ? "sm" : "md"}>
         {song ? "Save" : "Add song"}
+      </SubmitButton>
+    </form>
+  );
+}
+
+export type SongPart = { id: string; instrument: string; sheetUrl: string | null; sheetName: string | null };
+
+const FILE_INPUT =
+  "block w-full text-sm text-ink-muted file:mr-3 file:h-9 file:cursor-pointer file:rounded-lg file:border file:border-control file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken";
+
+/** Adds an instrument to a song (songId), or edits one (part), with an optional sheet music PDF. */
+export function PartForm({ songId, part }: { songId?: string; part?: SongPart }) {
+  const [state, action] = useActionState(savePartAction, null);
+  const ref = useResetOnAdd(state, !!part);
+  // Too-large files are caught here: the server would refuse the whole upload without a message.
+  const [tooLarge, setTooLarge] = useState(false);
+  const e = state?.errors ?? {};
+  const k = part?.id ?? `new-${songId}`;
+  const limitMb = MAX_SHEET_BYTES / 1024 / 1024;
+  return (
+    <form ref={ref} action={action} className="space-y-3">
+      {part ? <input type="hidden" name="id" value={part.id} /> : <input type="hidden" name="songId" value={songId} />}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Instrument" htmlFor={`pi-${k}`} error={e.instrument}>
+          <Input
+            id={`pi-${k}`}
+            name="instrument"
+            list="song-instruments"
+            defaultValue={part?.instrument ?? ""}
+            placeholder="e.g. Violin"
+            invalid={!!e.instrument}
+          />
+        </Field>
+        <Field
+          label={part?.sheetUrl ? "Replace sheet music" : "Sheet music"}
+          htmlFor={`ps-${k}`}
+          optional
+          hint={`PDF, up to ${limitMb} MB.`}
+          error={tooLarge ? `That PDF is too large (${limitMb} MB max).` : e.sheet}
+        >
+          <input
+            id={`ps-${k}`}
+            name="sheet"
+            type="file"
+            accept="application/pdf,.pdf"
+            className={FILE_INPUT}
+            onChange={(ev) => {
+              const file = ev.target.files?.[0];
+              const big = !!file && file.size > MAX_SHEET_BYTES;
+              setTooLarge(big);
+              if (big) ev.target.value = "";
+            }}
+          />
+        </Field>
+      </div>
+      <FormMessage state={state} />
+      <SubmitButton variant="secondary" size="sm">
+        {part ? "Save" : "Add instrument"}
       </SubmitButton>
     </form>
   );

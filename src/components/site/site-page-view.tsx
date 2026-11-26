@@ -35,7 +35,7 @@ export type HomeSplitLinks = {
 /**
  * Renders one guest-site page in the couple's chosen style. Colours and
  * fonts come from the CSS tokens the site shell sets (text-ink, bg-surface,
- * border-line, text-accent, font-serif …); the layout of each section comes
+ * border-line, text-accent-strong, font-serif …); the layout of each section comes
  * from `style.layout`.
  */
 export async function SitePageView({
@@ -66,7 +66,7 @@ export async function SitePageView({
       <div className="mb-8 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-card)] border border-line bg-sunken px-4 py-2.5 text-xs">
         <span className="text-ink">Hidden page — guests can&rsquo;t see this</span>
         <span className="flex items-center gap-3">
-          <Link href={`/admin/website/${page.id}`} className="font-medium text-accent underline">
+          <Link href={`/admin/website/${page.id}`} className="font-medium text-accent-strong underline">
             Edit page
           </Link>
           <Link href="/admin" className="text-ink-muted underline">
@@ -97,7 +97,7 @@ export async function SitePageView({
               <Link
                 href={rsvpHref}
                 data-split-rsvp-cta="true"
-                className="inline-flex min-h-12 min-w-[11.5rem] items-center justify-center rounded-full border-2 border-accent px-8 text-xs font-semibold tracking-[0.2em] text-accent uppercase transition-colors hover:bg-accent hover:text-accent-ink"
+                className="inline-flex min-h-12 min-w-[11.5rem] items-center justify-center rounded-full border-2 border-accent px-8 text-xs font-semibold tracking-[0.2em] text-accent-strong uppercase transition-colors hover:bg-accent hover:text-accent-ink"
               >
                 RSVP
               </Link>
@@ -106,7 +106,7 @@ export async function SitePageView({
               (detailsHref.startsWith("#") ? (
                 <a
                   href={detailsHref}
-                  className="inline-flex min-h-11 items-center gap-2 text-xs font-medium tracking-[0.16em] text-ink-muted uppercase transition-colors hover:text-accent"
+                  className="inline-flex min-h-11 items-center gap-2 text-xs font-medium tracking-[0.16em] text-ink-muted uppercase transition-colors hover:text-accent-strong"
                 >
                   <span>View details</span>
                   <svg
@@ -125,7 +125,7 @@ export async function SitePageView({
               ) : (
                 <Link
                   href={detailsHref}
-                  className="inline-flex min-h-11 items-center gap-2 text-xs font-medium tracking-[0.16em] text-ink-muted uppercase transition-colors hover:text-accent"
+                  className="inline-flex min-h-11 items-center gap-2 text-xs font-medium tracking-[0.16em] text-ink-muted uppercase transition-colors hover:text-accent-strong"
                 >
                   <span>View details</span>
                   <svg
@@ -359,7 +359,7 @@ function typography(style: SiteStyleSpec) {
   };
 }
 
-const eyebrow = "text-xs font-medium tracking-[0.2em] text-accent uppercase";
+const eyebrow = "text-xs font-medium tracking-[0.2em] text-accent-strong uppercase";
 
 // ------------------------------------------------------------ schedule
 
@@ -376,7 +376,7 @@ function EventDetails({ event, wedding, compact = false }: { event: Event; weddi
             <p className="flex flex-wrap items-baseline gap-x-2 text-ink-muted">
               <span>{event.address}</span>
               {mapsUrl && (
-                <a href={mapsUrl} target="_blank" rel="noreferrer" className="font-medium text-accent underline underline-offset-2">
+                <a href={mapsUrl} target="_blank" rel="noreferrer" className="font-medium text-accent-strong underline underline-offset-2">
                   Map ↗
                 </a>
               )}
@@ -396,10 +396,10 @@ function EventDetails({ event, wedding, compact = false }: { event: Event; weddi
       )}
       {gcalUrl && icsUrl && (
         <p className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs font-medium">
-          <a href={gcalUrl} target="_blank" rel="noreferrer" className="text-accent underline underline-offset-2">
+          <a href={gcalUrl} target="_blank" rel="noreferrer" className="text-accent-strong underline underline-offset-2">
             Add to Google Calendar ↗
           </a>
-          <a href={icsUrl} className="text-accent underline underline-offset-2">
+          <a href={icsUrl} className="text-accent-strong underline underline-offset-2">
             Add to Apple / Outlook calendar
           </a>
         </p>
@@ -417,7 +417,7 @@ function when(event: Event) {
 
 function HostNote({ text }: { text: string | null }) {
   if (!text) return null;
-  return <p className="inline-block rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent">{text}</p>;
+  return <p className="inline-block rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent-strong">{text}</p>;
 }
 
 function Schedule({
@@ -482,7 +482,7 @@ function Schedule({
             const w = when(e);
             return (
               <li key={e.id} className="grid gap-4 border-t border-ink py-8 sm:grid-cols-[3rem_1fr]">
-                <span className="font-serif text-3xl text-accent">{String(i + 1).padStart(2, "0")}</span>
+                <span className="font-serif text-3xl text-accent-strong">{String(i + 1).padStart(2, "0")}</span>
                 <div className="space-y-3">
                   <HostNote text={hostNote(e)} />
                   <h2 className={t.itemHeading}>{e.name}</h2>
@@ -542,7 +542,7 @@ function Schedule({
                 <HostNote text={hostNote(e)} />
                 <div>
                   <h2 className={t.itemHeading}>{e.name}</h2>
-                  <p className="mt-1 text-sm font-medium text-accent">{[w.date, w.time].filter(Boolean).join(" · ")}</p>
+                  <p className="mt-1 text-sm font-medium text-accent-strong">{[w.date, w.time].filter(Boolean).join(" · ")}</p>
                 </div>
                 <EventDetails event={e} wedding={wedding} />
               </li>
@@ -950,7 +950,7 @@ function Faq({ items, style, edit }: { items: Item[]; style: SiteStyleSpec; edit
         <details key={i.id} {...ia(i.id)} className={cn("group", row)}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-1 text-base font-medium text-ink select-none [&::-webkit-details-marker]:hidden">
             <span>{i.title}</span>
-            <span aria-hidden className="shrink-0 text-lg leading-none text-accent transition-transform group-open:rotate-45">
+            <span aria-hidden className="shrink-0 text-lg leading-none text-accent-strong transition-transform group-open:rotate-45">
               +
             </span>
           </summary>

@@ -30,6 +30,8 @@
   /* Guest-site extras (the site shell overrides these per style / accent). */
   --color-accent-ink: #ffffff;
   --color-accent-soft: #fce8ef;
+  /* The accent as text: the site shell deepens a too-pale accent so it stays readable. */
+  --color-accent-strong: #b03f68;
   --radius-control: 0.5rem;
 
   /* Status colours — the same meaning everywhere (RSVP, gifts, delivery). */

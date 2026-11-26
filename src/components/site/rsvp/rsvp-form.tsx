@@ -328,7 +328,7 @@ export function RsvpForm({
               <button
                 type="button"
                 onClick={addPlusOne}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-dashed border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:border-accent hover:bg-accent/5 hover:text-accent sm:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-dashed border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:border-accent hover:bg-accent/5 hover:text-accent-strong sm:w-auto"
               >
                 + Add guest
               </button>
@@ -606,7 +606,7 @@ function QuestionControl({
           </span>
         )}
         {question.required ? (
-          <span className="text-xs font-medium text-accent">Required</span>
+          <span className="text-xs font-medium text-accent-strong">Required</span>
         ) : (
           <span className="text-xs text-ink-faint">Optional</span>
         )}

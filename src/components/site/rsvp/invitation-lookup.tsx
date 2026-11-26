@@ -95,7 +95,7 @@ export function InvitationLookup({
         </h2>
         <p className="text-sm text-ink-muted sm:text-base">{description}</p>
         {deadline && (
-          <p className="text-sm font-medium text-accent">
+          <p className="text-sm font-medium text-accent-strong">
             Please respond by {formatDateLong(deadline)}
           </p>
         )}
@@ -144,7 +144,7 @@ export function InvitationLookup({
                       className="flex min-h-13 w-full items-center justify-between gap-3 rounded-xl border border-line-strong bg-surface px-4 py-3 text-left text-base font-medium text-ink transition-colors hover:border-accent hover:bg-accent/5 disabled:opacity-50"
                     >
                       <span>{opt.label}</span>
-                      <span className="text-sm font-normal text-accent">
+                      <span className="text-sm font-normal text-accent-strong">
                         {busy ? "Opening…" : "Select →"}
                       </span>
                     </button>

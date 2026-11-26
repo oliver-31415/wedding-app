@@ -4,11 +4,14 @@ import {
   buildPreviewQuery,
   buildSiteStyleVars,
   contrastRatio,
+  coupleInitials,
   firstSearchParam,
   getSiteStyle,
   isValidSiteStyle,
   normalizeHexColor,
+  paletteForAccent,
   pickAccentInk,
+  readableAccent,
   resolveSiteStyle,
   SITE_STYLE_IDS,
   SITE_STYLE_LIST,
@@ -210,5 +213,47 @@ describe("buildSiteStyleVars & firstSearchParam", () => {
       lead: "First paragraph.",
       rest: "Second paragraph.\n\nThird paragraph.",
     });
+  });
+});
+
+describe("accent-derived colours", () => {
+  const garden = SITE_STYLES.garden;
+
+  it("gives Garden pink paper for a pink accent, and leaves its own default and other styles alone", () => {
+    const pink = paletteForAccent(garden, "#ffc5d3");
+    expect(pink.canvas).not.toBe(garden.palette.canvas);
+    const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(pink.canvas.slice(i, i + 2), 16));
+    expect(r).toBeGreaterThan(g); // pink, not sage
+    expect(b).toBeGreaterThan(g);
+    expect(paletteForAccent(garden, garden.defaultAccent)).toBe(garden.palette);
+    expect(paletteForAccent(garden, "#171717")).toBe(garden.palette);
+    expect(paletteForAccent(SITE_STYLES.classic, "#ffc5d3")).toBe(SITE_STYLES.classic.palette);
+  });
+
+  it("keeps text readable on tinted paper for any hue", () => {
+    for (const accent of ["#ffc5d3", "#1e40af", "#f5d76e", "#9b4a32", "#7a2e3a", "#00bcd4"]) {
+      const p = paletteForAccent(garden, accent);
+      for (const ink of [p.ink, p.inkMuted, p.inkFaint]) {
+        for (const bg of [p.canvas, p.surface, p.sunken]) {
+          expect(contrastRatio(ink, bg), `${accent} ${ink}/${bg}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
+  it("deepens a pale accent into a readable shade of the same colour, and keeps dark ones", () => {
+    const bgs = ["#ffffff", "#f6eff1"];
+    const rose = readableAccent("#ffc5d3", bgs);
+    for (const bg of bgs) expect(contrastRatio(rose, bg)).toBeGreaterThanOrEqual(4.5);
+    expect(Number.parseInt(rose.slice(1, 3), 16)).toBeGreaterThan(Number.parseInt(rose.slice(3, 5), 16));
+    expect(readableAccent("#7a2e3a", bgs)).toBe("#7a2e3a");
+    const vars = buildSiteStyleVars({ style: garden, accent: "#ffc5d3", accentInk: "#111111" }) as Record<string, string>;
+    expect(vars["--color-accent"]).toBe("#ffc5d3");
+    expect(contrastRatio(vars["--color-accent-strong"], vars["--color-canvas"])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("takes each partner's first letter", () => {
+    expect(coupleInitials("Brendan", "olivia")).toEqual(["B", "O"]);
+    expect(coupleInitials("  Émile ", "")).toEqual(["É", ""]);
   });
 });

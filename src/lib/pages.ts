@@ -129,6 +129,7 @@ export const RESERVED_SLUGS = new Set<string>([
   "editor",
   "contact",
   "helper",
+  "icon",
   "uploads",
   "w",
 ]);

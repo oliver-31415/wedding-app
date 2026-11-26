@@ -200,7 +200,7 @@ export function RsvpSummary({
           <button
             type="button"
             onClick={onEdit}
-            className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-accent bg-surface px-6 text-base font-medium text-accent transition-colors hover:bg-accent/5 sm:w-auto"
+            className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-accent bg-surface px-6 text-base font-medium text-accent-strong transition-colors hover:bg-accent/5 sm:w-auto"
           >
             Change my RSVP
           </button>

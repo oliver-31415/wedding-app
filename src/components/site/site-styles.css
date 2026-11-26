@@ -159,7 +159,7 @@
   :is(button, a).bg-accent.text-white:not([aria-checked="true"]):not([aria-pressed="true"]) {
   background-color: transparent;
   border: 1.5px solid var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent-strong);
   border-radius: 9999px;
   transition: background-color 150ms ease, color 150ms ease, opacity 150ms ease;
 }

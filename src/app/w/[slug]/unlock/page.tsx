@@ -36,7 +36,7 @@ export default async function UnlockPage({
       {!wedding.sitePassword ? (
         <p className="mt-3 text-sm leading-relaxed text-ink-muted">
           This page is for invited guests.{" "}
-          <a className="text-accent underline" href={findHref}>
+          <a className="text-accent-strong underline" href={findHref}>
             Find your invitation
           </a>{" "}
           to see it.
@@ -47,7 +47,7 @@ export default async function UnlockPage({
           <UnlockForm weddingSlug={wedding.slug} nextPath={nextPath} />
           <p className="mt-4 text-sm text-ink-muted">
             Or{" "}
-            <a className="text-accent underline" href={findHref}>
+            <a className="text-accent-strong underline" href={findHref}>
               find your invitation by name
             </a>
             .

@@ -65,7 +65,7 @@ export function GiftItemCard({
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">
             {item.mostWanted && !item.complete && (
-              <span className="inline-flex items-center rounded-full bg-accent/12 px-2.5 py-0.5 text-xs font-medium text-accent">
+              <span className="inline-flex items-center rounded-full bg-accent/12 px-2.5 py-0.5 text-xs font-medium text-accent-strong">
                 Most wanted
               </span>
             )}

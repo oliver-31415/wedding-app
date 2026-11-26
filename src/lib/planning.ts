@@ -299,3 +299,25 @@ export function seatingCandidates(snapshot: {
   }
   return out;
 }
+
+// ---------------------------------------------------------------- music
+
+/** Largest sheet music PDF a host can upload for an instrument. */
+export const MAX_SHEET_BYTES = 15 * 1024 * 1024;
+
+/** Suggestions for the Instrument field (typed freely; these are just hints). */
+export const INSTRUMENTS = [
+  "Piano",
+  "Organ",
+  "Violin",
+  "Viola",
+  "Cello",
+  "Double bass",
+  "Guitar",
+  "Harp",
+  "Flute",
+  "Clarinet",
+  "Saxophone",
+  "Trumpet",
+  "Vocals",
+];

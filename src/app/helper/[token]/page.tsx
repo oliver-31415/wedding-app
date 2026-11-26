@@ -74,7 +74,7 @@ export default async function HelperPage({ params }: PageProps<"/helper/[token]"
                     href={buildGoogleMapsUrl(venue.name, venue.address)}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-medium text-accent underline underline-offset-2"
+                    className="font-medium text-accent-strong underline underline-offset-2"
                   >
                     Map
                   </a>
@@ -116,7 +116,7 @@ export default async function HelperPage({ params }: PageProps<"/helper/[token]"
                 const with_ = others(job.id);
                 return (
                   <li key={job.id} className="space-y-1.5 px-4 py-4 sm:px-5">
-                    {timeText && <p className="text-sm font-semibold text-accent tabular-nums">{timeText}</p>}
+                    {timeText && <p className="text-sm font-semibold text-accent-strong tabular-nums">{timeText}</p>}
                     <p className="text-lg leading-snug font-medium text-ink">{job.title}</p>
                     <TextBlock text={job.notes} className="space-y-2 text-sm leading-relaxed text-ink-muted" />
                     {with_.length > 0 && <p className="text-sm text-ink-muted">With {joinNames(with_)}</p>}
