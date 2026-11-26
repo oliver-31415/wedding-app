@@ -384,7 +384,7 @@ Hosts can preview any style with `?style=<id>&accent=%23rrggbb&embed=1`;
 those parameters are ignored for guests. Garden's tinted paper takes the hue
 of a custom accent (`paletteForAccent`), so a pink accent gets blush paper.
 
-The browser-tab icon is the couple's initials on their accent colour
+The browser-tab icon is the couple's initials in pink (whatever the accent)
 (`src/lib/couple-icon.tsx`, served by `icon.tsx` in `w/[slug]` and `admin`;
 the root `icon.tsx` is a plain circle for sign-in pages).
 

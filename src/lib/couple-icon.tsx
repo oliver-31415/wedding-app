@@ -1,18 +1,14 @@
 import "server-only";
 import { ImageResponse } from "next/og";
-import { coupleInitials, normalizeHexColor, pickAccentInk, readableAccent } from "@/lib/site-styles";
+import { coupleInitials } from "@/lib/site-styles";
 
-/** The browser-tab icon: the couple's initials on a circle of their accent colour. */
+/** The browser-tab icon: the couple's initials in rose on a pastel pink circle, whatever the site's accent. */
 export const ICON_SIZE = { width: 64, height: 64 };
 
-export function coupleIcon(
-  couple: { partnerOne: string; partnerTwo: string; accentColor: string } | null,
-): ImageResponse {
+export function coupleIcon(couple: { partnerOne: string; partnerTwo: string } | null): ImageResponse {
   // Without a wedding (signed out, or an unknown site) it's a plain pink circle.
-  const accent = normalizeHexColor(couple?.accentColor) ?? "#b03f68";
-  // Pale accents (pastel pink) get initials in a deeper shade of the same colour; dark ones get white.
-  const ink = pickAccentInk(accent) === "#ffffff" ? "#ffffff" : readableAccent(accent, [accent]);
   const [one, two] = couple ? coupleInitials(couple.partnerOne, couple.partnerTwo) : ["", ""];
+  const ink = "#b03f68";
   return new ImageResponse(
     (
       <div
@@ -23,7 +19,7 @@ export function coupleIcon(
           alignItems: "center",
           justifyContent: "center",
           borderRadius: "50%",
-          background: accent,
+          background: "#fbd3de",
           color: ink,
           fontSize: 32,
           // The bundled font only comes in regular: a thin outline keeps it legible at tab size.
