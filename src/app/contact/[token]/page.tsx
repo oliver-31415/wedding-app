@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ContactForm } from "@/components/contact/contact-form";
 import { addressOf, resolveContactLink } from "@/lib/contact-collector";
+import { buildSiteStyleVars, resolveSiteStyle } from "@/lib/site-styles";
 
 export const metadata: Metadata = { title: "Share your contact details", robots: { index: false, follow: false } };
 
@@ -15,11 +16,15 @@ export default async function ContactPage({ params }: PageProps<"/contact/[token
   if (!link) notFound();
   const { wedding } = link;
   const couple = `${wedding.partnerOne} & ${wedding.partnerTwo}`;
+  // The wedding's own style and colours, like the site (and the helper pages).
+  const resolved = resolveSiteStyle({ savedTheme: wedding.theme, savedAccent: wedding.accentColor, isHost: false });
 
   return (
     <main
+      data-site-style="true"
+      data-style={resolved.style.id}
       className="min-h-dvh bg-canvas px-4 py-10 sm:py-16"
-      style={{ "--color-accent": wedding.accentColor } as React.CSSProperties}
+      style={buildSiteStyleVars(resolved)}
     >
       <div className="mx-auto w-full max-w-xl space-y-6">
         <header className="space-y-2 text-center">

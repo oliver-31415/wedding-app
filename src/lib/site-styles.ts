@@ -486,6 +486,8 @@ export function buildSiteStyleVars(resolved: Pick<ResolvedSiteStyle, "style" | "
     "--color-brand": accent,
     "--color-brand-strong": `color-mix(in srgb, ${accent} 84%, black)`,
     "--color-brand-soft": accentSoft,
+    // Neutral badges (Child, Plus-one) sit on the style's own grey, not the admin's
+    "--color-neutral-soft": palette.sunken,
     "--font-serif": fonts.heading,
     "--font-sans": fonts.body,
     "--radius-card": layout.cardRadius,

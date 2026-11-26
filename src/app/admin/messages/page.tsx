@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { requireHost } from "@/lib/auth";
 import { emailEnabled } from "@/lib/email";
+import { emailUsage } from "@/lib/email-usage";
 import { MESSAGE_KIND_META } from "@/lib/messaging/templates";
 
 export default async function MessagesPage({
@@ -28,7 +29,7 @@ export default async function MessagesPage({
   const sp = await searchParams;
   const tab = sp.tab === "sent" ? "sent" : "drafts";
 
-  const [allMessages, deliveries, tagRows] = await Promise.all([
+  const [allMessages, deliveries, tagRows, emailUse] = await Promise.all([
     db
       .select()
       .from(schema.messages)
@@ -46,15 +47,15 @@ export default async function MessagesPage({
       .from(schema.tags)
       .where(eq(schema.tags.weddingId, wedding.id))
       .orderBy(asc(schema.tags.name)),
+    emailUsage(),
   ]);
 
   const tagNames = new Map(tagRows.map((t) => [t.id, t.name]));
 
-  const deliveryCounts = new Map<string, { sent: number; failed: number }>();
+  const deliveryCounts = new Map<string, { sent: number; failed: number; queued: number }>();
   for (const d of deliveries) {
-    const entry = deliveryCounts.get(d.messageId) ?? { sent: 0, failed: 0 };
-    if (d.status === "sent") entry.sent++;
-    else entry.failed++;
+    const entry = deliveryCounts.get(d.messageId) ?? { sent: 0, failed: 0, queued: 0 };
+    entry[d.status]++;
     deliveryCounts.set(d.messageId, entry);
   }
 
@@ -84,6 +85,11 @@ export default async function MessagesPage({
           )}
         </Notice>
       )}
+
+      <p className="text-sm text-ink-muted">
+        Emails sent in the last 24 hours: {emailUse.day} of {emailUse.limits.daily} · last 31 days:{" "}
+        {emailUse.month} of {emailUse.limits.monthly}
+      </p>
 
       <SubNav
         items={[
@@ -160,7 +166,7 @@ export default async function MessagesPage({
             </thead>
             <tbody>
               {sent.map((m) => {
-                const counts = deliveryCounts.get(m.id) ?? { sent: 0, failed: 0 };
+                const counts = deliveryCounts.get(m.id) ?? { sent: 0, failed: 0, queued: 0 };
                 return (
                   <tr key={m.id} className="hover:bg-sunken/50">
                     <Td>
@@ -189,6 +195,12 @@ export default async function MessagesPage({
                       >
                         {counts.failed} failed
                       </span>
+                      {counts.queued > 0 && (
+                        <>
+                          <span className="mx-1.5 text-ink-faint">·</span>
+                          <span className="text-info">{counts.queued} waiting</span>
+                        </>
+                      )}
                     </Td>
                   </tr>
                 );

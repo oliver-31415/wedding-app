@@ -1,24 +1,43 @@
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { db, schema } from "@/db";
-import { DraftEditor } from "@/components/admin/messages/draft-editor";
+import { DraftEditor, type EmailPlanInfo } from "@/components/admin/messages/draft-editor";
 import { MarkReachedForm, UnmarkReachedButton } from "@/components/admin/messages/mark-reached";
 import {
   buttonTargetLabel,
   describeRecipients,
   formatTimestamp,
 } from "@/components/admin/messages/format";
-import { BackLink, Badge, Card, CardBody, CardHeader, PageHeader, SubmitButton, Table, Td, TextBlock, Th } from "@/components/ui";
+import { AutoRefresh } from "@/components/admin/messages/auto-refresh";
+import {
+  BackLink,
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  ConfirmButton,
+  DeliveryBadge,
+  PageHeader,
+  SubmitButton,
+  Table,
+  Td,
+  TextBlock,
+  Th,
+} from "@/components/ui";
 import { requireHost } from "@/lib/auth";
 import { emailEnabled } from "@/lib/email";
+import { describeWhen, planSends, roundUpEstimate } from "@/lib/email-quota";
+import { emailUsage, queuedCount } from "@/lib/email-usage";
 import { appUrl } from "@/lib/email-layout";
 import { MESSAGE_KIND_META } from "@/lib/messaging/templates";
 import { DELIVERY_METHOD_META } from "@/lib/messaging/delivery-methods";
-import { notReached } from "@/lib/messaging/reach";
+import { NOT_REACHED_REASON, notReached, waitingToSend } from "@/lib/messaging/reach";
+import { processEmailQueue } from "@/lib/messaging/queue";
 import { guestName, householdLabel } from "@/lib/rsvp/model";
 import { loadSnapshot } from "@/lib/snapshot";
-import { duplicateMessage } from "./actions";
+import { duplicateMessage, stopQueuedEmails } from "./actions";
 
 export default async function MessageDetailPage({
   params,
@@ -35,14 +54,27 @@ export default async function MessageDetailPage({
   if (!message) notFound();
 
   if (message.status === "draft") {
-    const [snapshot, tagRows] = await Promise.all([
+    const [snapshot, tagRows, emailUse, ahead] = await Promise.all([
       loadSnapshot(wedding.id),
       db
         .select({ id: schema.tags.id, name: schema.tags.name })
         .from(schema.tags)
         .where(eq(schema.tags.weddingId, wedding.id))
         .orderBy(asc(schema.tags.name)),
+      emailUsage(),
+      queuedCount(),
     ]);
+    // When the emails would go, for as many as could possibly match; the
+    // editor takes the first N for the recipients chosen (plans are greedy).
+    const now = emailUse.now;
+    const mostRecipients = new Set(snapshot.guests.map((g) => g.email?.trim().toLowerCase()).filter(Boolean)).size;
+    const emailPlan: EmailPlanInfo = {
+      plan: planSends(mostRecipients, emailUse.sends, now, emailUse.limits, { ahead }),
+      now,
+      timeZone: wedding.timeZone,
+      daily: emailUse.limits.daily,
+      monthly: emailUse.limits.monthly,
+    };
 
     return (
       <div>
@@ -84,16 +116,18 @@ export default async function MessageDetailPage({
           baseUrl={appUrl()}
           emailConfigured={emailEnabled()}
           isDev={process.env.NODE_ENV !== "production"}
+          emailPlan={emailPlan}
         />
       </div>
     );
   }
 
   // Sent message view
-  const [deliveries, tagRows] = await Promise.all([
+  const [deliveries, tagRows, addedRows] = await Promise.all([
     db
       .select({
         id: schema.messageDeliveries.id,
+        createdAt: schema.messageDeliveries.createdAt,
         email: schema.messageDeliveries.email,
         method: schema.messageDeliveries.method,
         status: schema.messageDeliveries.status,
@@ -116,6 +150,10 @@ export default async function MessageDetailPage({
       .select({ id: schema.tags.id, name: schema.tags.name })
       .from(schema.tags)
       .where(eq(schema.tags.weddingId, wedding.id)),
+    db
+      .select({ id: schema.guests.id, createdAt: schema.guests.createdAt })
+      .from(schema.guests)
+      .where(eq(schema.guests.weddingId, wedding.id)),
   ]);
 
   const tagNames = new Map(tagRows.map((t) => [t.id, t.name]));
@@ -123,7 +161,40 @@ export default async function MessageDetailPage({
   const emailedCount = deliveries.filter((d) => d.status === "sent" && d.method === "email").length;
   const otherCount = deliveries.filter((d) => d.status === "sent" && d.method !== "email").length;
   const failedCount = deliveries.filter((d) => d.status === "failed").length;
-  const waiting = notReached(snapshot, message, deliveries);
+  const waiting = notReached(snapshot, message, deliveries, new Map(addedRows.map((g) => [g.id, g.createdAt])));
+
+  // Emails waiting for room under the email limits, and when the next ones go.
+  const queued = waitingToSend(deliveries);
+  let queueSummary: string | null = null;
+  let sendingNow = false;
+  let stopDetail = "";
+  if (queued.length) {
+    const oldest = new Date(Math.min(...queued.map((d) => d.createdAt.getTime())));
+    const [emailUse, ahead] = await Promise.all([emailUsage(), queuedCount(oldest)]);
+    const now = emailUse.now;
+    const plan = planSends(queued.length, emailUse.sends, now, emailUse.limits, { ahead });
+    sendingNow = plan.now > 0;
+    const next = plan.later[0];
+    queueSummary = [
+      `${queued.length} waiting`,
+      sendingNow
+        ? "sending now"
+        : next
+          ? `next batch from about ${describeWhen(roundUpEstimate(next.at), now, wedding.timeZone)}`
+          : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    stopDetail = [
+      `${queued.length} ${queued.length === 1 ? "guest hasn't" : "guests haven't"} been emailed yet and won't be.`,
+      emailedCount ? `The ${emailedCount} already emailed ${emailedCount === 1 ? "isn't" : "aren't"} affected.` : null,
+      `${queued.length === 1 ? "This guest" : "These guests"} will show as not reached yet, so you can tell them another way.`,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    // Room now: make sure the queue is running (it's locked, so this never doubles up).
+    if (sendingNow) after(() => processEmailQueue());
+  }
   // Not reached yet, grouped into households (the usual unit for posting or texting).
   const waitingByHousehold = [...Map.groupBy(waiting, (w) => w.householdId)].map(([householdId, people]) => {
     const household = snapshot.households.find((h) => h.id === householdId);
@@ -176,11 +247,41 @@ export default async function MessageDetailPage({
         </CardBody>
       </Card>
 
+      {queueSummary && (
+        <Card>
+          <CardHeader
+            title="Sending in batches"
+            description={queueSummary}
+            actions={
+              <form action={stopQueuedEmails}>
+                <input type="hidden" name="messageId" value={message.id} />
+                <ConfirmButton
+                  variant="secondary"
+                  confirm="Stop sending the rest?"
+                  detail={stopDetail}
+                  pendingLabel="Stopping…"
+                >
+                  Stop sending the rest
+                </ConfirmButton>
+              </form>
+            }
+          />
+          <CardBody>
+            <p className="text-sm text-ink-muted">
+              Your email account can only send so many emails a day, so the rest go out by themselves as room
+              frees up. You don&apos;t need to keep this page open.
+            </p>
+          </CardBody>
+          {sendingNow && <AutoRefresh />}
+        </Card>
+      )}
+
       <Card>
         <CardHeader
           title="Who it reached"
           description={[
             `${emailedCount} emailed`,
+            queued.length ? `${queued.length} waiting to send` : null,
             otherCount ? `${otherCount} sent another way` : null,
             failedCount ? `${failedCount} failed` : null,
             waiting.length ? `${waiting.length} not reached yet` : null,
@@ -188,56 +289,58 @@ export default async function MessageDetailPage({
             .filter(Boolean)
             .join(" · ")}
         />
-        <Table>
-          <thead>
-            <tr>
-              <Th>Guest</Th>
-              <Th>Email</Th>
-              <Th>How</Th>
-              <Th>Error</Th>
-              <Th>
-                <span className="sr-only">Undo</span>
-              </Th>
-            </tr>
-          </thead>
-          <tbody>
-            {deliveries.map((d) => (
-              <tr key={d.id}>
-                <Td>
-                  {d.firstName && d.lastName && d.householdId ? (
-                    <Link
-                      href={`/admin/guests/${d.householdId}`}
-                      className="font-medium text-ink hover:text-brand hover:underline"
-                    >
-                      {guestName({ firstName: d.firstName, lastName: d.lastName })}
-                    </Link>
-                  ) : (
-                    <span className="text-ink-muted">Deleted guest</span>
-                  )}
-                </Td>
-                <Td className="text-ink-muted">{d.email ?? "—"}</Td>
-                <Td>
-                  {d.status === "sent" ? (
-                    <Badge tone={DELIVERY_METHOD_META[d.method].tone}>{DELIVERY_METHOD_META[d.method].label}</Badge>
-                  ) : (
-                    <Badge tone="bad">Failed</Badge>
-                  )}
-                </Td>
-                <Td className={d.error ? "text-bad" : "text-ink-faint"}>
-                  {d.error ?? "—"}
-                </Td>
-                <Td>{d.method !== "email" && <UnmarkReachedButton deliveryId={d.id} />}</Td>
+        {deliveries.length > 0 && (
+          <Table>
+            <thead>
+              <tr>
+                <Th>Guest</Th>
+                <Th>Email</Th>
+                <Th>How</Th>
+                <Th>Error</Th>
+                <Th>
+                  <span className="sr-only">Undo</span>
+                </Th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
+            </thead>
+            <tbody>
+              {deliveries.map((d) => (
+                <tr key={d.id}>
+                  <Td>
+                    {d.firstName && d.lastName && d.householdId ? (
+                      <Link
+                        href={`/admin/guests/${d.householdId}`}
+                        className="font-medium text-ink hover:text-brand hover:underline"
+                      >
+                        {guestName({ firstName: d.firstName, lastName: d.lastName })}
+                      </Link>
+                    ) : (
+                      <span className="text-ink-muted">Deleted guest</span>
+                    )}
+                  </Td>
+                  <Td className="text-ink-muted">{d.email ?? "—"}</Td>
+                  <Td>
+                    {d.status === "sent" ? (
+                      <Badge tone={DELIVERY_METHOD_META[d.method].tone}>{DELIVERY_METHOD_META[d.method].label}</Badge>
+                    ) : (
+                      <DeliveryBadge status={d.status} />
+                    )}
+                  </Td>
+                  <Td className={d.error ? "text-bad" : "text-ink-faint"}>
+                    {d.error ?? "—"}
+                  </Td>
+                  <Td>{d.method !== "email" && <UnmarkReachedButton deliveryId={d.id} />}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
       </Card>
 
       {waiting.length > 0 && (
         <Card>
           <CardHeader
             title="Not reached yet"
-            description="These guests match this message but weren't emailed: they have no email address, or were added after it went out. If you've posted, texted or told them, mark it here so they count as reached."
+            description="These guests match this message but haven't been emailed: they have no email address, were added after it went out, or their email didn't go. If you've posted, texted or told them, mark it here so they count as reached."
             actions={
               waiting.length > 1 ? (
                 <MarkReachedForm
@@ -258,7 +361,7 @@ export default async function MessageDetailPage({
                   </Link>
                   <p className="text-ink-muted">
                     {h.people
-                      .map((p) => `${p.name}${p.reason === "added_since" ? " (added since)" : " (no email)"}`)
+                      .map((p) => `${p.name} (${NOT_REACHED_REASON[p.reason]})`)
                       .join(", ")}
                   </p>
                 </div>

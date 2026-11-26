@@ -1,6 +1,8 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 import { db, schema } from "@/db";
+import type { SendKind } from "@/lib/email-quota";
+import { releaseSend, reserveSend } from "@/lib/email-usage";
 import { newId } from "@/lib/ids";
 
 export type Email = {
@@ -12,7 +14,10 @@ export type Email = {
   /** The wedding this email belongs to (scopes the dev outbox). */
   weddingId?: string | null;
 };
-export type SendResult = { ok: true } | { ok: false; error: string };
+export type SendResult =
+  | { ok: true }
+  /** `limited`: refused because an email limit is reached; nothing was sent, try again from `retryAt`. */
+  | { ok: false; error: string; limited?: boolean; retryAt?: number | null };
 
 /**
  * Email goes out over SMTP, so any provider works. For Resend:
@@ -43,10 +48,20 @@ function mailer(): Transporter {
  * Sends one email. Without SMTP settings, development stores it in the
  * `outbox` table instead (view at /admin/dev/outbox); production refuses,
  * because emails contain personal links that must not pile up in the database.
+ *
+ * Every email counts against the account's daily and monthly limits
+ * (src/lib/email-quota.ts) and is recorded in `email_sends`; once a limit is
+ * reached it's refused with `limited: true`. Bulk messages pass
+ * `kind: "bulk"` so they leave room for one-off emails.
  */
-export async function sendEmail(email: Email): Promise<SendResult> {
+export async function sendEmail(email: Email, { kind = "single" }: { kind?: SendKind } = {}): Promise<SendResult> {
+  if (!emailEnabled() && process.env.NODE_ENV === "production") {
+    return { ok: false, error: "Email isn't set up on this server." };
+  }
+  const slot = await reserveSend(email.weddingId, kind);
+  if (!slot.ok) return { ok: false, error: slot.error, limited: true, retryAt: slot.retryAt };
+
   if (!emailEnabled()) {
-    if (process.env.NODE_ENV === "production") return { ok: false, error: "Email isn't set up on this server." };
     await db.insert(schema.outbox).values({
       id: newId(),
       weddingId: email.weddingId ?? null,
@@ -68,6 +83,7 @@ export async function sendEmail(email: Email): Promise<SendResult> {
     });
     return { ok: true };
   } catch (e) {
+    await releaseSend(slot.id);
     return { ok: false, error: e instanceof Error ? e.message : "Unknown error" };
   }
 }

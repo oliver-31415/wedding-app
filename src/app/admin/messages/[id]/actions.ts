@@ -3,16 +3,19 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { db, schema } from "@/db";
 import type { MessageRecipients } from "@/db/schema";
 import { isButtonTarget, isRsvpStatus } from "@/components/admin/messages/format";
 import { requireHost } from "@/lib/auth";
-import { sendEmail } from "@/lib/email";
+import { emailEnabled, sendEmail } from "@/lib/email";
 import { fail, ok, readAudience, text, type ActionState } from "@/lib/forms";
 import { newId } from "@/lib/ids";
+import { processEmailQueue, stopQueuedMessage } from "@/lib/messaging/queue";
 import { selectRecipients } from "@/lib/messaging/recipients";
 import { renderMessage } from "@/lib/messaging/render";
 import { DEFAULT_BUTTON_LABELS, type ButtonTarget } from "@/lib/messaging/templates";
+import { revalidateWedding } from "@/lib/revalidate";
 import { loadSnapshot } from "@/lib/snapshot";
 
 type ParsedDraft = {
@@ -203,12 +206,16 @@ export async function sendMessage(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { wedding, siteBase } = await requireHost();
+  const { wedding } = await requireHost();
   const messageId = text(formData, "messageId");
   if (!messageId) return fail("Message not found.");
 
   const parsed = parseDraftForm(formData);
   if (!parsed.ok) return fail("Please fix the highlighted fields.", parsed.errors);
+  // Without email set up, production can't send anything: keep it a draft rather than fail every guest.
+  if (!emailEnabled() && process.env.NODE_ENV === "production") {
+    return fail("Email isn't set up on this server yet, so this message can't be sent. It's still saved as a draft.");
+  }
 
   const snapshot = await loadSnapshot(wedding.id);
   const preview = selectRecipients(snapshot, parsed.data.recipients);
@@ -216,74 +223,69 @@ export async function sendMessage(
     return fail("No guests match this filter with an email address.");
   }
 
-  const householdRows = await db
-    .select({ id: schema.households.id, inviteToken: schema.households.inviteToken })
-    .from(schema.households)
-    .where(eq(schema.households.weddingId, wedding.id));
-  const inviteTokenByHousehold = new Map(
-    householdRows.map((h) => [h.id, h.inviteToken]),
+  // Atomically claim the draft as "sent" and queue one email per recipient,
+  // so a message can't be sent twice. The queue sends them as the email
+  // limits allow (src/lib/messaging/queue.ts): most now, the rest later.
+  const sentAt = new Date();
+  const claimed = await db.transaction(
+    async (tx) => {
+      const rows = await tx
+        .update(schema.messages)
+        .set({
+          subject: parsed.data.subject,
+          body: parsed.data.body,
+          buttonTarget: parsed.data.buttonTarget,
+          buttonLabel: parsed.data.buttonLabel,
+          recipients: parsed.data.recipients,
+          status: "sent",
+          sentAt,
+        })
+        .where(
+          and(
+            eq(schema.messages.id, messageId),
+            eq(schema.messages.weddingId, wedding.id),
+            eq(schema.messages.status, "draft"),
+          ),
+        )
+        .returning({ id: schema.messages.id });
+      if (rows.length === 0) return false;
+      const queued = preview.recipients.map((r) => ({
+        id: newId(),
+        weddingId: wedding.id,
+        messageId,
+        guestId: r.guestId,
+        email: r.email,
+        method: "email" as const,
+        status: "queued" as const,
+        createdAt: sentAt,
+      }));
+      for (let i = 0; i < queued.length; i += 500) {
+        await tx.insert(schema.messageDeliveries).values(queued.slice(i, i + 500));
+      }
+      return true;
+    },
+    { behavior: "immediate" },
   );
 
-  // Atomically claim the draft as "sent" before sending any emails to prevent double-sends.
-  const sentAt = new Date();
-  const claimed = await db
-    .update(schema.messages)
-    .set({
-      subject: parsed.data.subject,
-      body: parsed.data.body,
-      buttonTarget: parsed.data.buttonTarget,
-      buttonLabel: parsed.data.buttonLabel,
-      recipients: parsed.data.recipients,
-      status: "sent",
-      sentAt,
-    })
-    .where(
-      and(
-        eq(schema.messages.id, messageId),
-        eq(schema.messages.weddingId, wedding.id),
-        eq(schema.messages.status, "draft"),
-      ),
-    )
-    .returning({ id: schema.messages.id });
-
-  if (claimed.length === 0) {
+  if (!claimed) {
     return fail("This message has already been sent.");
   }
 
-  for (const recipient of preview.recipients) {
-    const inviteToken = inviteTokenByHousehold.get(recipient.householdId) ?? null;
-    const rendered = renderMessage({
-      wedding: { ...wedding, siteBase },
-      message: {
-        subject: parsed.data.subject,
-        body: parsed.data.body,
-        buttonTarget: parsed.data.buttonTarget,
-        buttonLabel: parsed.data.buttonLabel,
-      },
-      recipient,
-      inviteToken,
-    });
-    const res = await sendEmail({
-      to: recipient.email,
-      subject: rendered.subject,
-      html: rendered.html,
-      text: rendered.text,
-      weddingId: wedding.id,
-    });
-    await db.insert(schema.messageDeliveries).values({
-      id: newId(),
-      weddingId: wedding.id,
-      messageId,
-      guestId: recipient.guestId,
-      email: recipient.email,
-      status: res.ok ? "sent" : "failed",
-      error: res.ok ? null : res.error,
-    });
-  }
+  // Start sending once the redirect is on its way; the message page shows progress.
+  after(() => processEmailQueue());
 
   revalidatePath("/admin/messages");
   revalidatePath(`/admin/messages/${messageId}`);
   redirect(`/admin/messages/${messageId}`);
+}
+
+/** "Stop sending the rest": drops this message's emails still waiting to send. */
+export async function stopQueuedEmails(formData: FormData): Promise<void> {
+  const { wedding } = await requireHost();
+  const messageId = text(formData, "messageId");
+  if (!messageId) return;
+  await stopQueuedMessage(wedding.id, messageId);
+  revalidateWedding();
 }
 
 export async function deleteDraft(formData: FormData): Promise<void> {

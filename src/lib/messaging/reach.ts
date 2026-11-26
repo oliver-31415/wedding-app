@@ -21,10 +21,24 @@ export type Delivery = {
   guestId: string | null;
   email: string | null;
   method: DeliveryMethod;
-  status: "sent" | "failed";
+  /** "queued": an email waiting for room under the email limits (src/lib/messaging/queue.ts). */
+  status: "queued" | "sent" | "failed";
 };
 
-export type NotReached = { guestId: string; householdId: string; name: string; reason: "no_email" | "added_since" };
+/**
+ * Why a guest the message is meant for hasn't got it: no address; added to
+ * the list after it went; their email failed; or not emailed (the couple
+ * stopped the rest of a send, or the address was added since).
+ */
+export type NotReachedReason = "no_email" | "added_since" | "failed" | "not_emailed";
+export type NotReached = { guestId: string; householdId: string; name: string; reason: NotReachedReason };
+
+export const NOT_REACHED_REASON: Record<NotReachedReason, string> = {
+  no_email: "no email",
+  added_since: "added since",
+  failed: "email failed",
+  not_emailed: "not emailed",
+};
 
 export async function deliveriesFor(weddingId: string, messageIds: string[]): Promise<(Delivery & { messageId: string })[]> {
   if (!messageIds.length) return [];
@@ -44,13 +58,24 @@ export async function deliveriesFor(weddingId: string, messageIds: string[]): Pr
 
 /**
  * Guests the message is meant for (by its recipient filter, as the guest list
- * is now) who have no successful delivery: no email address, or added after
- * it went out. Someone who shares an address that was emailed counts as reached.
+ * is now) who have no successful delivery and no email waiting to send: no
+ * email address, added after it went out, or their email failed or was
+ * stopped. Someone who shares an address that was emailed counts as reached.
+ * Pass `addedAt` (guest id → when they were added) to tell "added since" apart
+ * from "not emailed"; without it, both read as "added since".
  */
-export function notReached(snapshot: WeddingSnapshot, message: Pick<Message, "recipients">, deliveries: Delivery[]): NotReached[] {
+export function notReached(
+  snapshot: WeddingSnapshot,
+  message: Pick<Message, "recipients"> & { sentAt?: Date | null },
+  deliveries: Delivery[],
+  addedAt?: Map<string, Date>,
+): NotReached[] {
   const preview = selectRecipients(snapshot, message.recipients);
-  const reachedGuests = new Set(deliveries.filter((d) => d.status === "sent" && d.guestId).map((d) => d.guestId!));
-  const reachedEmails = new Set(deliveries.filter((d) => d.status === "sent" && d.email).map((d) => d.email!.toLowerCase()));
+  // Waiting to send counts as on its way: not reached, but nothing for the couple to do.
+  const covered = deliveries.filter((d) => d.status === "sent" || d.status === "queued");
+  const reachedGuests = new Set(covered.filter((d) => d.guestId).map((d) => d.guestId!));
+  const reachedEmails = new Set(covered.filter((d) => d.email).map((d) => d.email!.toLowerCase()));
+  const failedGuests = new Set(deliveries.filter((d) => d.status === "failed" && d.guestId).map((d) => d.guestId!));
   const byId = new Map(snapshot.guests.map((g) => [g.id, g]));
   const out: NotReached[] = [];
   for (const m of preview.missingEmail) {
@@ -60,10 +85,19 @@ export function notReached(snapshot: WeddingSnapshot, message: Pick<Message, "re
   for (const r of preview.recipients) {
     if (reachedGuests.has(r.guestId) || reachedEmails.has(r.email)) continue;
     const g = byId.get(r.guestId)!;
-    out.push({ guestId: g.id, householdId: g.householdId, name: `${g.firstName} ${g.lastName}`, reason: "added_since" });
+    const added = addedAt?.get(g.id);
+    const reason: NotReachedReason = failedGuests.has(g.id)
+      ? "failed"
+      : !addedAt || !message.sentAt || (added && added > message.sentAt)
+        ? "added_since"
+        : "not_emailed";
+    out.push({ guestId: g.id, householdId: g.householdId, name: `${g.firstName} ${g.lastName}`, reason });
   }
   return out;
 }
+
+/** Deliveries still waiting to send. */
+export const waitingToSend = <D extends Pick<Delivery, "status">>(deliveries: D[]) => deliveries.filter((d) => d.status === "queued");
 
 /** Records that these guests got the message another way. Guests already reached are skipped. */
 export async function markReached(weddingId: string, messageId: string, guestIds: string[], method: ManualMethod): Promise<number> {
@@ -94,7 +128,20 @@ export async function markReached(weddingId: string, messageId: string, guestIds
       const rows = guests
         .filter((g) => !done.has(g.id))
         .map((g) => ({ id: newId(), weddingId, messageId: message.id, guestId: g.id, email: null, method, status: "sent" as const }));
-      if (rows.length) await tx.insert(schema.messageDeliveries).values(rows);
+      if (rows.length) {
+        // Reached another way: an email still waiting to send for them shouldn't also go.
+        await tx.delete(schema.messageDeliveries).where(
+          and(
+            eq(schema.messageDeliveries.messageId, message.id),
+            eq(schema.messageDeliveries.status, "queued"),
+            inArray(
+              schema.messageDeliveries.guestId,
+              rows.map((r) => r.guestId),
+            ),
+          ),
+        );
+        await tx.insert(schema.messageDeliveries).values(rows);
+      }
       return rows.length;
     },
     { behavior: "immediate" },

@@ -47,11 +47,47 @@ cleverness: every screen should look and behave like the others.
   and the couple can mark them posted / texted / in person / other — those
   count as reached exactly like emails. Never invent a delivery the couple
   didn't record.
+- **Email limits and the send queue** (`src/lib/email-quota.ts` pure rules,
+  `src/lib/email-usage.ts`, `src/lib/messaging/queue.ts`). The email account
+  is shared by every wedding and allows `EMAIL_DAILY_LIMIT` (100) a day and
+  `EMAIL_MONTHLY_LIMIT` (3000) a month, counted over the last 24 hours and
+  31 days from `email_sends` (one row per email sent or put in the dev
+  outbox). `sendEmail()` refuses once a limit is reached. Sending a message
+  queues a `"queued"` delivery per recipient; the queue sends oldest first
+  while bulk room remains (bulk leaves `EMAIL_BULK_RESERVE`, 10, free for
+  one-off emails), and a 5-minute timer from `src/instrumentation.ts` sends
+  the rest as room frees up. Queued guests show as "Waiting to send", not
+  "not reached yet"; "Stop sending the rest" deletes the queued rows. Never
+  send bulk email any other way.
+- **Finding an invitation by name** (`src/lib/rsvp/lookup.ts`) has three
+  tiers. Exact (ignoring case, accents, punctuation, honorifics), or exactly a
+  name the couple accepted before (an alias): logs straight in. Confident
+  near match (nickname, shortened first name, half a double-barrelled
+  surname, names swapped, or one typo in a name of 5+ letters, or a swapped
+  or doubled letter in 4): "Is this you?" showing only the matched person's
+  name, never an automatic login. Unsure (two typos, sounds alike, a typo in
+  a 3-letter name, same first name only …): the guest sees "We couldn't find
+  that name" and can ask the couple to check. Those requests are
+  `name_requests` (`src/lib/name-checks.ts`); the couple matches them on
+  RSVPs → Name checks using `suggestGuests()`, which emails the guest their
+  personal link. Accepted rows are the aliases; "Forget" deletes one. Pass
+  aliases (`loadNameAliases`) wherever you call `findInvitation`.
 - **Dietary requirements** are a question type (`"dietary"`, `src/lib/rsvp/dietary.ts`):
   a fixed checklist plus a note, stored as JSON in `answers.value`
   (`{"needs":[]}` = none). Always per guest, at most one active per wedding.
   Totals come from `computeStats` (`QuestionStats.dietary`), shown on RSVPs →
   Dietary; chart slices are exact combinations so they never overlap.
+- **Jobs and helpers on the Day of run sheet** (pure rules in
+  `src/lib/run-sheet.ts`, loading in `src/lib/run-sheet-data.ts`). Each run
+  sheet item can have `jobs` ("HH:mm" start/end on the wedding day, both
+  optional, end after start; a new job starts at the item's time), listed by
+  start time with untimed jobs last. `helpers` are people doing jobs (not
+  guests; the form can copy a guest's details), linked through `job_helpers`.
+  Each helper has a private page `/helper/{helpers.token}` (works while the
+  site is a draft, noindex) showing only their jobs, grouped by run sheet
+  item, and the names and roles of others on them, never anyone's contact
+  details. Admin: Day of → Run sheet (jobs under each item, printable) ·
+  Helpers (links, emails) · Music.
 - **Visual editor** (`/editor/[pageId]`): the guest page in an iframe with
   `?edit=1`. Editable parts carry `editAttrs(...)` from `src/lib/edit-targets.ts`
   (hosts only); `EditBridge` turns clicks into messages that open the matching
@@ -190,7 +226,7 @@ Destructive ones use `<ConfirmButton confirm="Delete this event? …">`.
 | Gifts | claimed in full → "Gifted" (good) · partly → "2 of 3 gifted" (info) · none → nothing |
 | Pledges | received → "Received" (good) · not yet → "Pledged" (warn) |
 | Thank-you | thankedAt set → "Thanked" (good) · not → "To thank" (warn) |
-| Email delivery | sent → "Sent" (good) · failed → "Failed" (bad) |
+| Email delivery | queued → "Waiting to send" (info) · sent → "Sent" (good) · failed → "Failed" (bad) |
 
 Stats: `StatTile` for headline numbers, `SegmentBar` for attending /
 declined / awaiting splits (tones good / bad / warn), `BarList` for answer
@@ -237,7 +273,7 @@ Admin (`/admin/…`, inside the shell in `src/app/admin/layout.tsx`):
 | `/admin/rsvp/**` | RSVP admin |
 | `/admin/messages/**`, `/admin/dev/outbox`, `src/lib/messaging/render.ts` | Messaging |
 | `/admin/gifts/**` | Gifts |
-| `/admin/checklist`, `/admin/budget/**`, `/admin/seating`, `/admin/day-of/**` | Planning |
+| `/admin/checklist`, `/admin/budget/**`, `/admin/seating`, `/admin/day-of/**` (incl. jobs and helpers), `/helper/[token]` | Planning |
 
 Shared site components go in `src/components/site/`, admin ones in
 `src/components/admin/<area>/`.

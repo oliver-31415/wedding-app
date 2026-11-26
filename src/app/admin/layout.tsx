@@ -10,8 +10,8 @@ export const metadata: Metadata = { robots: { index: false } };
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const { user, wedding, siteBase } = await requireHost();
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[15rem_1fr]">
-      <aside className="print:hidden border-b border-line bg-surface md:sticky md:top-0 md:h-screen md:border-r md:border-b-0">
+    <div className="min-h-screen md:grid md:grid-cols-[15rem_1fr] print:block">
+      <aside className="border-b border-line bg-surface md:sticky md:top-0 md:h-screen md:border-r md:border-b-0 print:hidden">
         <div className="flex h-full flex-col gap-4 p-4">
           <div className="space-y-1.5 px-1">
             <p className="font-serif text-xl leading-tight font-medium">

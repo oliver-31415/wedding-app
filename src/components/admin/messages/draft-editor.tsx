@@ -24,6 +24,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import type { Audience, MessageKind, MessageRecipients } from "@/db/schema";
+import { describePlan, firstOfPlan, type SendPlan } from "@/lib/email-quota";
 import { selectRecipients } from "@/lib/messaging/recipients";
 import { renderMessage, type RenderWedding } from "@/lib/messaging/render";
 import {
@@ -49,6 +50,9 @@ export type EditableMessage = {
   recipients: MessageRecipients;
 };
 
+/** When a bulk send's emails would go under the email limits (src/lib/email-quota.ts). */
+export type EmailPlanInfo = { plan: SendPlan; now: number; timeZone: string; daily: number; monthly: number };
+
 const DEFAULT_LABEL_SET = new Set(Object.values(DEFAULT_BUTTON_LABELS));
 
 export function DraftEditor({
@@ -61,6 +65,7 @@ export function DraftEditor({
   baseUrl,
   emailConfigured,
   isDev,
+  emailPlan,
 }: {
   message: EditableMessage;
   wedding: RenderWedding;
@@ -71,6 +76,7 @@ export function DraftEditor({
   baseUrl: string;
   emailConfigured: boolean;
   isDev: boolean;
+  emailPlan: EmailPlanInfo;
 }) {
   const [subject, setSubject] = useState(message.subject);
   const [body, setBody] = useState(message.body);
@@ -152,6 +158,8 @@ export function DraftEditor({
 
   const recipientCount = recipientPreview.recipients.length;
   const householdCount = recipientPreview.households;
+  const plan = firstOfPlan(emailPlan.plan, recipientCount);
+  const planWords = describePlan(plan, emailPlan.now, emailPlan.timeZone);
 
   const handleButtonTargetChange = (next: string) => {
     const nextTarget: "" | ButtonTarget = isButtonTarget(next) ? next : "";
@@ -306,6 +314,13 @@ export function DraftEditor({
               description="Send yourself a test first, or send this email to all matching guests."
             />
             <CardBody className="space-y-4">
+              {planWords && (
+                <Notice tone="info" title="Your emails will go out in batches">
+                  Your email account sends up to {emailPlan.daily} emails a day and {emailPlan.monthly} a
+                  month, with a few kept free for RSVP confirmations. {planWords} You don&apos;t need to do
+                  anything: they send by themselves.
+                </Notice>
+              )}
               <div className="flex flex-wrap items-center gap-3">
                 <form
                   action={sendAction}
@@ -335,6 +350,7 @@ export function DraftEditor({
                       confirm={`Send this email to ${recipientCount} ${
                         recipientCount === 1 ? "guest" : "guests"
                       }? Once sent, it can't be unsent.`}
+                      detail={planWords || undefined}
                     >
                       Send to {recipientCount}{" "}
                       {recipientCount === 1 ? "guest" : "guests"}

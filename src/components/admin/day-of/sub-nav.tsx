@@ -8,6 +8,7 @@ export function DayOfSubNav({ current }: { current: string }) {
         current={current}
         items={[
           { href: "/admin/day-of", label: "Run sheet" },
+          { href: "/admin/day-of/helpers", label: "Helpers" },
           { href: "/admin/day-of/music", label: "Music" },
         ]}
       />

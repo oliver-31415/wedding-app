@@ -109,3 +109,13 @@ export function daysUntil(date: string, timeZone: string, now = Date.now()): num
   const today = Date.parse(`${todayIn(timeZone, now)}T00:00:00Z`);
   return Math.round((Date.parse(`${date}T00:00:00Z`) - today) / 86_400_000);
 }
+
+/** "Saturday 28 November" (no year) */
+export function formatDateWeekday(date: string): string {
+  return wallToUtcDate(date).toLocaleDateString(LOCALE, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+}
+
+/** "7:05 pm": an instant's wall-clock time in `timeZone`. */
+export function formatInstantTime(instant: number, timeZone: string): string {
+  return new Date(instant).toLocaleTimeString(LOCALE, { timeZone, hour: "numeric", minute: "2-digit" });
+}

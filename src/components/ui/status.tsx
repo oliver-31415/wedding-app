@@ -4,7 +4,7 @@
  */
 import type { PageVisibility } from "@/db/schema";
 import type { GuestEventStatus, HouseholdRsvpState } from "@/lib/rsvp/model";
-import { GUEST_EVENT_STATUS, HOUSEHOLD_STATE, PAGE_VISIBILITY } from "@/lib/status-words";
+import { DELIVERY_STATUS, GUEST_EVENT_STATUS, HOUSEHOLD_STATE, PAGE_VISIBILITY, type DeliveryStatus } from "@/lib/status-words";
 import { Badge } from "./feedback";
 
 export function GuestEventBadge({ status }: { status: GuestEventStatus }) {
@@ -46,6 +46,6 @@ export function ThankedBadge({ thanked }: { thanked: boolean }) {
   return thanked ? <Badge tone="good">Thanked</Badge> : <Badge tone="warn">To thank</Badge>;
 }
 
-export function DeliveryBadge({ status }: { status: "sent" | "failed" }) {
-  return status === "sent" ? <Badge tone="good">Sent</Badge> : <Badge tone="bad">Failed</Badge>;
+export function DeliveryBadge({ status }: { status: DeliveryStatus }) {
+  return <Badge tone={DELIVERY_STATUS[status].tone}>{DELIVERY_STATUS[status].label}</Badge>;
 }

@@ -12,6 +12,7 @@ import {
   SetupChecklistCard,
   type ActivityItem,
 } from "@/components/admin/dashboard/sections";
+import { NameChecksCard } from "@/components/admin/dashboard/name-checks-card";
 import { BudgetCard, ChecklistCard, PaymentsDueCard } from "@/components/admin/dashboard/planning";
 import { AttendingTile, AwaitingTile, ResponseRateTile } from "@/components/admin/rsvp-stats";
 import { PageHeader, StatGrid, StatTile } from "@/components/ui";
@@ -22,6 +23,7 @@ import { computeGiftSummary } from "@/lib/gifts";
 import { paymentState, taskGroup, upcomingPayments } from "@/lib/planning";
 import { loadBudgetData, loadHosts } from "@/lib/planning-data";
 import { loadGiftData } from "@/lib/gifts-data";
+import { countPendingNameChecks } from "@/lib/name-checks";
 import { householdLabel, type SnapGuest } from "@/lib/rsvp/model";
 import { loadSnapshot } from "@/lib/snapshot";
 import { computeStats } from "@/lib/stats";
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
 export default async function DashboardPage() {
   const { user, wedding } = await requireHost();
 
-  const [snapshot, giftData, weddingPages, activityRows, budget, tasks, hosts] = await Promise.all([
+  const [snapshot, giftData, weddingPages, activityRows, budget, tasks, hosts, pendingNameChecks] = await Promise.all([
     loadSnapshot(wedding.id),
     loadGiftData(wedding.id),
     db
@@ -50,6 +52,7 @@ export default async function DashboardPage() {
     loadBudgetData(wedding),
     db.select().from(schema.tasks).where(eq(schema.tasks.weddingId, wedding.id)),
     loadHosts(wedding.id),
+    countPendingNameChecks(wedding.id),
   ]);
 
   const today = todayIn(wedding.timeZone);
@@ -105,6 +108,8 @@ export default async function DashboardPage() {
       <PageHeader title={`Hi ${firstName(user.name)}`} description={dateHeader ?? undefined} />
 
       <SetupChecklistCard checklist={checklist} />
+
+      <NameChecksCard pending={pendingNameChecks} />
 
       <StatGrid>
         <StatTile

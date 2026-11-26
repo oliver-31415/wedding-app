@@ -292,17 +292,41 @@ await table(1, "Table 1", 10);
 await table(2, "Table 2", 10);
 const seededGuests = await db.select().from(schema.guests).where(eq(schema.guests.weddingId, weddingId));
 await db.insert(schema.seatAssignments).values(seededGuests.slice(0, 3).map((g) => ({ guestId: g.id, weddingId, tableId: head })));
-await db.insert(schema.runSheetItems).values([
-  { id: newId(), weddingId, time: "09:00", title: "Hair and makeup", location: "Bridal suite", who: "Wedding party" },
-  { id: newId(), weddingId, time: "15:00", title: "Ceremony begins", location: "Garden lawn", who: "Celebrant, photographer" },
-  { id: newId(), weddingId, time: "15:45", title: "Group photos", location: "Vineyard rows", who: "Photographer — family list in notes", notes: "Immediate family first, then wedding party." },
-  { id: newId(), weddingId, time: "18:00", title: "Reception doors open", location: "Barrel hall" },
-  { id: newId(), weddingId, time: "21:00", title: "First dance", who: "DJ" },
-]);
+const runItem = async (v: Omit<typeof schema.runSheetItems.$inferInsert, "id" | "weddingId">) => {
+  const id = newId();
+  await db.insert(schema.runSheetItems).values({ id, weddingId, ...v });
+  return id;
+};
+await runItem({ time: "09:00", title: "Hair and makeup", location: "Bridal suite", who: "Wedding party" });
+const ceremonyItem = await runItem({ time: "15:00", title: "Ceremony begins", location: "Garden lawn", who: "Celebrant, photographer" });
+await runItem({ time: "15:45", title: "Group photos", location: "Vineyard rows", who: "Photographer — family list in notes", notes: "Immediate family first, then wedding party." });
+const doorsItem = await runItem({ time: "18:00", title: "Reception doors open", location: "Barrel hall" });
+const danceItem = await runItem({ time: "21:00", title: "First dance", who: "DJ" });
 await db.insert(schema.songs).values([
   { id: newId(), weddingId, moment: "Walking down the aisle", title: "Canon in D", artist: "Pachelbel", position: 0 },
   { id: newId(), weddingId, moment: "First dance", title: "La Vie en rose", artist: "Louis Armstrong", position: 1 },
   { id: newId(), weddingId, title: "Macarena", artist: "Los del Río", doNotPlay: true, position: 2 },
 ]);
+
+// helpers and their jobs on the run sheet (each helper's page is /helper/{token})
+const helper = async (position: number, name: string, role: string | null, email: string | null, phone: string | null) => {
+  const id = newId();
+  await db.insert(schema.helpers).values({ id, weddingId, name, role, email, phone, token: newToken(), position });
+  return id;
+};
+const rob = await helper(0, "Robert Callahan", "Best man", "rob@example.com", "0412 345 678");
+const grace = await helper(1, "Grace Liu", "Bridesmaid", "grace@example.com", "0423 456 789");
+const david = await helper(2, "David Jones", "Alex's dad", "david.jones@example.com", null);
+const job = async (runSheetItemId: string, position: number, v: { title: string; notes?: string; startTime?: string; endTime?: string }, helperIds: string[]) => {
+  const id = newId();
+  await db.insert(schema.jobs).values({ id, weddingId, runSheetItemId, position, ...v });
+  if (helperIds.length) await db.insert(schema.jobHelpers).values(helperIds.map((helperId) => ({ jobId: id, helperId })));
+};
+await job(ceremonyItem, 0, { title: "Put out the welcome sign and chair ribbons", startTime: "13:30", endTime: "14:15", notes: "Everything's in the two white tubs in Sam's car boot." }, [rob, david]);
+await job(ceremonyItem, 1, { title: "Hand out the order of service", startTime: "14:30", endTime: "15:00", notes: "Programs are in the blue box by the entrance." }, [grace]);
+await job(ceremonyItem, 2, { title: "Look after the rings", startTime: "14:00" }, [rob]);
+await job(doorsItem, 0, { title: "Best man speech", startTime: "19:30", endTime: "19:40" }, [rob]);
+await job(danceItem, 0, { title: "Hand the DJ the playlist", startTime: "20:45" }, [grace]);
+await job(doorsItem, 1, { title: "Collect the gifts and cards", notes: "Take them to Alex's mum's car." }, []);
 
 console.log("Seeded demo wedding /w/alex-and-sam — sign in as demo@example.com / wedding-demo (site password: bowral)");

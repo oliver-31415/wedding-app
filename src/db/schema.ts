@@ -663,7 +663,11 @@ export const messageDeliveries = sqliteTable(
     email: text("email"),
     /** "email" = sent by this app; the others are marked by the couple. */
     method: text("method", { enum: DELIVERY_METHODS }).notNull().default("email"),
-    status: text("status", { enum: ["sent", "failed"] }).notNull(),
+    /**
+     * "queued" = waiting for room under the email limits (src/lib/email-quota.ts);
+     * only ever with method "email". createdAt is when it was queued or recorded.
+     */
+    status: text("status", { enum: ["queued", "sent", "failed"] }).notNull(),
     error: text("error"),
     createdAt: createdAt(),
   },
@@ -866,6 +870,98 @@ export const songs = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("songs_wedding").on(t.weddingId)],
+);
+
+/**
+ * One row per email this server sends (or stores in the dev outbox), so
+ * bulk sends can stay under the email provider's daily and monthly limits.
+ * Counted across all weddings: they share one email account.
+ */
+export const emailSends = sqliteTable(
+  "email_sends",
+  {
+    id: id(),
+    weddingId: text("wedding_id").references(() => weddings.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("email_sends_created").on(t.createdAt)],
+);
+
+/**
+ * Someone who couldn't find their invitation by name and asked the couple to
+ * check. Accepting one links the typed name to a guest (so the same spelling
+ * finds them straight away next time) and emails them their invitation link.
+ */
+export const nameRequests = sqliteTable(
+  "name_requests",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    email: text("email").notNull(),
+    note: text("note"),
+    status: text("status", { enum: ["pending", "accepted", "dismissed"] }).notNull().default("pending"),
+    /** Accepted: the guest this name belongs to. */
+    guestId: text("guest_id").references(() => guests.id, { onDelete: "set null" }),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("name_requests_wedding").on(t.weddingId, t.status)],
+);
+
+// ---------------------------------------------------------------- helpers (Day of run sheet)
+
+/** People helping on the day. Each has a private page (/helper/{token}) listing their jobs. */
+export const helpers = sqliteTable(
+  "helpers",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    name: text("name").notNull(),
+    /** e.g. "Bridesmaid", "MC". */
+    role: text("role"),
+    email: text("email"),
+    phone: text("phone"),
+    /** Secret in the helper's page link. */
+    token: text("token").notNull().unique(),
+    position: position(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("helpers_wedding").on(t.weddingId)],
+);
+
+/** Something that needs doing for an item on the Day of run sheet. */
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: id(),
+    weddingId: weddingId(),
+    runSheetItemId: text("run_sheet_item_id")
+      .notNull()
+      .references(() => runSheetItems.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    notes: text("notes"),
+    /** "HH:mm" on the wedding day; null = no set time (it happens at the item's time). */
+    startTime: text("start_time"),
+    endTime: text("end_time"),
+    position: position(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("jobs_wedding").on(t.weddingId), index("jobs_item").on(t.runSheetItemId)],
+);
+
+export const jobHelpers = sqliteTable(
+  "job_helpers",
+  {
+    jobId: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    helperId: text("helper_id")
+      .notNull()
+      .references(() => helpers.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.jobId, t.helperId] }), index("job_helpers_helper").on(t.helperId)],
 );
 
 // ---------------------------------------------------------------- relations

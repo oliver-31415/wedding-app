@@ -3,32 +3,33 @@
 /*
  * Design tokens. Admin screens use these names only (bg-surface, text-ink-muted,
  * border-line, bg-brand …) — never raw palette colours — so the whole admin
- * looks like one product. The guest site overrides --color-accent per wedding.
+ * looks like one product: pastel pinks, with a deeper rose for text and buttons
+ * so everything stays readable. The guest site overrides these per wedding.
  */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-serif-display), ui-serif, Georgia, serif;
 
-  --color-canvas: #faf8f5;
+  --color-canvas: #fdf6f8;
   --color-surface: #ffffff;
-  --color-sunken: #f3f0eb;
-  --color-line: #e6e1d9;
-  --color-line-strong: #cfc7bb;
+  --color-sunken: #faeef2;
+  --color-line: #f2dfe6;
+  --color-line-strong: #e6c6d2;
   /* Borders of interactive controls (inputs, checkboxes, secondary buttons): 3:1 on white. */
-  --color-control: #9d9488;
+  --color-control: #a17e8c;
 
-  --color-ink: #1f1b16;
-  --color-ink-muted: #6b6258;
-  --color-ink-faint: #766d63;
+  --color-ink: #2a1a21;
+  --color-ink-muted: #6f5a64;
+  --color-ink-faint: #78626c;
 
-  --color-brand: #7c5c3e;
-  --color-brand-strong: #634831;
-  --color-brand-soft: #f3ebe2;
+  --color-brand: #b03f68;
+  --color-brand-strong: #8f3156;
+  --color-brand-soft: #fce8ef;
 
-  --color-accent: #7c5c3e;
+  --color-accent: #b03f68;
   /* Guest-site extras (the site shell overrides these per style / accent). */
   --color-accent-ink: #ffffff;
-  --color-accent-soft: #f3ebe2;
+  --color-accent-soft: #fce8ef;
   --radius-control: 0.5rem;
 
   /* Status colours — the same meaning everywhere (RSVP, gifts, delivery). */
@@ -40,9 +41,9 @@
   --color-warn-soft: #fbf0dc;
   --color-bad: #b33a3a;
   --color-bad-soft: #f9e5e3;
-  --color-info: #3b6ea8;
+  --color-info: #3a6da7;
   --color-info-soft: #e5eef8;
-  --color-neutral-soft: #efebe5;
+  --color-neutral-soft: #f5ebef;
 
   --radius-card: 0.875rem;
 }

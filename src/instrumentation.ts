@@ -8,4 +8,10 @@ export async function register() {
     const { runMigrations } = await import("./db/run-migrations");
     await runMigrations();
   }
+  // Bulk emails waiting for room under the email limits (src/lib/messaging/queue.ts).
+  // Not while building; the timer guards itself against hot-reload duplicates.
+  if (process.env.NEXT_PHASE !== "phase-production-build") {
+    const { startEmailQueueTimer } = await import("./lib/messaging/queue");
+    startEmailQueueTimer();
+  }
 }

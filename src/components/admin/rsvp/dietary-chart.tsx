@@ -1,9 +1,13 @@
 import type { DietaryStats } from "@/lib/stats";
 
-/** Distinct, muted colours that sit with the brand browns; "none" and "not answered" are greys. */
-const PALETTE = ["#7c5c3e", "#2f7a4f", "#c0843d", "#4f6d8f", "#a3485a", "#6b8f71", "#8a6fb0", "#3d8a8a", "#b86b4b", "#5f5a52"];
-const NONE_COLOUR = "#d6cec2";
-const PENDING_COLOUR = "#efebe5";
+/**
+ * Pastel pinks, roses and mauves to match the admin, alternating deep and
+ * light so neighbouring slices stay easy to tell apart; "none" and
+ * "not answered" are pale pink-greys.
+ */
+const PALETTE = ["#b03f68", "#f4a3bf", "#8e5f8c", "#f7c1a8", "#d9668f", "#c9b2e3", "#7d3b5c", "#f2b8c8", "#b57d9a", "#e88b9d"];
+const NONE_COLOUR = "#e6d7dd";
+const PENDING_COLOUR = "#f6eef1";
 
 export type Slice = { key: string; label: string; count: number; colour: string };
 

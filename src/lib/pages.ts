@@ -128,6 +128,7 @@ export const RESERVED_SLUGS = new Set<string>([
   "site-admin",
   "editor",
   "contact",
+  "helper",
   "uploads",
   "w",
 ]);

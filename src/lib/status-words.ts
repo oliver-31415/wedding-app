@@ -38,6 +38,14 @@ export const PAGE_VISIBILITY: Record<PageVisibility, Word & { hint: string }> = 
   hidden: { label: "Hidden", tone: "neutral", hint: "Only you can see this page while previewing." },
 };
 
+/** An email the app sends. "queued" = waiting for room under the email limits. */
+export type DeliveryStatus = "queued" | "sent" | "failed";
+export const DELIVERY_STATUS: Record<DeliveryStatus, Word> = {
+  queued: { label: "Waiting to send", tone: "info" },
+  sent: { label: "Sent", tone: "good" },
+  failed: { label: "Failed", tone: "bad" },
+};
+
 // ---------------------------------------------------------------- planning tools
 
 export const VENDOR_STATUS: Record<"considering" | "booked", Word> = {

@@ -93,3 +93,10 @@ const globalForGuestLimits = globalThis as unknown as { waGuestActionLimiter?: R
 export const guestActionLimiter: RateLimiter =
   globalForGuestLimits.waGuestActionLimiter ?? createRateLimiter({ limit: 10, windowMs: 60_000 });
 if (process.env.NODE_ENV !== "production") globalForGuestLimits.waGuestActionLimiter = guestActionLimiter;
+
+const globalForNameChecks = globalThis as unknown as { waNameCheckLimiter?: RateLimiter };
+
+/** Asking the couple to check a name: 5 an hour per IP + wedding, so the list can't be flooded. */
+export const nameCheckLimiter: RateLimiter =
+  globalForNameChecks.waNameCheckLimiter ?? createRateLimiter({ limit: 5, windowMs: 60 * 60_000 });
+if (process.env.NODE_ENV !== "production") globalForNameChecks.waNameCheckLimiter = nameCheckLimiter;

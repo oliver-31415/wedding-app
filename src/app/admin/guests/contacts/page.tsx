@@ -8,6 +8,7 @@ import { db, schema } from "@/db";
 import { requireHost } from "@/lib/auth";
 import { addressOf } from "@/lib/contact-collector";
 import { appUrl } from "@/lib/email-layout";
+import { loadNameAliases } from "@/lib/name-checks";
 import { findInvitation } from "@/lib/rsvp/lookup";
 import { householdLabel } from "@/lib/rsvp/model";
 import { setCollectorAction } from "./actions";
@@ -16,7 +17,7 @@ export const metadata: Metadata = { title: "Contact details" };
 
 export default async function ContactDetailsPage() {
   const { wedding } = await requireHost();
-  const [replies, resolved, households, guests] = await Promise.all([
+  const [replies, resolved, households, guests, aliases] = await Promise.all([
     db
       .select()
       .from(schema.contactSubmissions)
@@ -41,6 +42,7 @@ export default async function ContactDetailsPage() {
       .from(schema.guests)
       .where(eq(schema.guests.weddingId, wedding.id))
       .orderBy(asc(schema.guests.position), asc(schema.guests.createdAt)),
+    loadNameAliases(wedding.id),
   ]);
 
   const snapGuests = guests.map((g) => ({ ...g, tagIds: [] as string[] }));
@@ -61,7 +63,7 @@ export default async function ContactDetailsPage() {
   // Suggest the household whose guest list has one of the people who replied.
   const suggest = (people: { firstName: string; lastName: string }[]) => {
     for (const p of people) {
-      const found = findInvitation(p.firstName, p.lastName, snapGuests);
+      const found = findInvitation(p.firstName, p.lastName, snapGuests, aliases);
       if (found.kind === "match") return found.householdId;
       if (found.kind === "choose" && found.options.length === 1) return found.options[0].householdId;
     }
