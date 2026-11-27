@@ -5,7 +5,7 @@
  * Open Graph / product meta tags, then a few common page patterns. Anything
  * it can't find confidently is left out for the couple to type.
  */
-import { MAX_NAME, MAX_STORE, suggestStoreFromUrl } from "./helpers";
+import { MAX_NAME, MAX_STORE, storeNameForUrl, suggestStoreFromUrl } from "./helpers";
 
 export type ProductDetails = {
   name: string | null;
@@ -367,7 +367,7 @@ export function extractProductDetails(html: string, pageUrl: string): ProductDet
       ?.split(/[:|–—]/)
       .map((p) => tidy(p, MAX_STORE)?.replace(/[™®]/g, "").trim() ?? "")
       .find((p) => p && hostLabel.length >= 3 && squash(p).includes(squash(hostLabel))) ?? null;
-  const storeName = (siteName ?? fromSuffix ?? host) || null;
+  const storeName = (siteName ?? fromSuffix ?? storeNameForUrl(pageUrl)) || null;
 
   return {
     name: name ? name.slice(0, MAX_NAME) : null,

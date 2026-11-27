@@ -55,6 +55,105 @@ export function suggestStoreFromUrl(raw: string | null | undefined): string | nu
   return host || null;
 }
 
+const KNOWN_STORES: [RegExp, string][] = [
+  [/(^|\.)(amazon\.[a-z.]+|amzn\.[a-z.]+|a\.co)$/, "Amazon"],
+  [/(^|\.)ebay\.[a-z.]+$/, "eBay"],
+  [/(^|\.)etsy\.com$/, "Etsy"],
+  [/(^|\.)ikea\.com$/, "IKEA"],
+  [/(^|\.)kmart\.com\.au$/, "Kmart"],
+  [/(^|\.)target\.com\.au$/, "Target"],
+  [/(^|\.)bigw\.com\.au$/, "Big W"],
+  [/(^|\.)bunnings\.com\.au$/, "Bunnings"],
+  [/(^|\.)myer\.com\.au$/, "Myer"],
+  [/(^|\.)davidjones\.com$/, "David Jones"],
+  [/(^|\.)jbhifi\.com\.au$/, "JB Hi-Fi"],
+  [/(^|\.)thegoodguys\.com\.au$/, "The Good Guys"],
+  [/(^|\.)harveynorman\.com\.au$/, "Harvey Norman"],
+  [/(^|\.)adairs\.com\.au$/, "Adairs"],
+  [/(^|\.)bedthreads\.com(\.au)?$/, "Bed Threads"],
+];
+
+/** The store's name for a link: "Amazon" for any Amazon address, else the web address ("bedthreads.com.au"). */
+export function storeNameForUrl(raw: string | null | undefined): string | null {
+  const host = suggestStoreFromUrl(raw);
+  if (!host) return null;
+  return KNOWN_STORES.find(([re]) => re.test(host))?.[1] ?? host;
+}
+
+/**
+ * The link in whatever was pasted: share text like "Check out this item:
+ * https://amzn.asia/d/abc" gives the https link; a bare "www.…" or
+ * "shop.com/item" address gets https:// added. Null when there's no link.
+ */
+export function extractLink(raw: string | null | undefined): string | null {
+  const text = (raw ?? "").trim();
+  if (!text) return null;
+  const found =
+    /https?:\/\/[^\s<>"'`]+/i.exec(text)?.[0] ??
+    /(?:^|\s)(www\.[^\s<>"'`]+)/i.exec(text)?.[1] ??
+    (/^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(text) && /\.[a-z]{2,}(\/|$)/i.test(text) ? text : null);
+  if (!found) return null;
+  // Sentence punctuation after a link isn't part of it.
+  const link = found.replace(/[.,;:!?)\]}'"]+$/, "");
+  const withScheme = /^https?:\/\//i.test(link) ? link : `https://${link}`;
+  try {
+    const parsed = new URL(withScheme);
+    return parsed.hostname.includes(".") ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A product name from the link itself, for when the shop won't let us read its
+ * page. Only Amazon puts the name in its links: /Le-Creuset-Casserole/dp/B0….
+ */
+export function nameFromProductUrl(raw: string | null | undefined): string | null {
+  if (storeNameForUrl(raw) !== "Amazon") return null;
+  const segments = new URL(raw!).pathname.split("/").filter(Boolean);
+  const at = segments.findIndex((s) => s === "dp" || s === "gp");
+  const slug = at > 0 ? segments[at - 1] : null;
+  if (!slug || !/[a-z]/i.test(slug) || !slug.includes("-")) return null;
+  let words: string;
+  try {
+    words = decodeURIComponent(slug);
+  } catch {
+    return null;
+  }
+  return words.replace(/-+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_NAME) || null;
+}
+
+export type LinkFillKey = "name" | "storeName" | "price";
+export type LinkFillText = Record<LinkFillKey, string>;
+
+/**
+ * What "Fill in from link" does to the name, store and price. Everything the
+ * shop's page has replaces what's in the form (the form offers Undo). Something
+ * the page doesn't have is cleared if it came from the previous link, so a new
+ * product never keeps the last one's price, and kept if the couple typed it.
+ */
+export function planLinkFill(
+  current: LinkFillText,
+  fromLastLink: Partial<LinkFillText>,
+  found: Record<LinkFillKey, string | null>,
+): { values: LinkFillText; filled: LinkFillKey[]; missing: LinkFillKey[] } {
+  const values = { ...current };
+  const filled: LinkFillKey[] = [];
+  const missing: LinkFillKey[] = [];
+  for (const key of ["name", "storeName", "price"] as const) {
+    const value = found[key]?.trim();
+    if (value) {
+      values[key] = value;
+      filled.push(key);
+      continue;
+    }
+    missing.push(key);
+    const last = fromLastLink[key];
+    if (last !== undefined && last === current[key]) values[key] = "";
+  }
+  return { values, filled, missing };
+}
+
 /** Formats integer cents as a plain numeric string for form inputs ("549" or "549.50"). */
 export function centsToInputValue(cents: number | null | undefined): string {
   if (cents == null) return "";

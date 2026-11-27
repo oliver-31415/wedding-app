@@ -4,13 +4,17 @@ import {
   MAX_NAME,
   buildReceivedEntries,
   centsToInputValue,
+  extractLink,
   filterReceivedEntries,
   formatThankYouCopyList,
   itemStatusBadge,
+  nameFromProductUrl,
   parseImageMode,
   parseReceivedFilter,
+  planLinkFill,
   resolveImagePlan,
   sortGuestItems,
+  storeNameForUrl,
   suggestStoreFromUrl,
   validateCashFundInput,
   validateGiftItemInput,
@@ -444,5 +448,47 @@ describe("gift-admin helpers", () => {
         }),
       ).toEqual({ ok: true, plan: { kind: "url", url: "https://cdn.example/kettle.png" } });
     });
+  });
+});
+
+describe("filling a gift from a link", () => {
+  it("finds the link in pasted share text and bare addresses", () => {
+    expect(extractLink("https://www.amazon.com.au/dp/B07PGL2WVS")).toBe("https://www.amazon.com.au/dp/B07PGL2WVS");
+    expect(extractLink("Check out this item on Amazon https://amzn.asia/d/3wFXbRz")).toBe("https://amzn.asia/d/3wFXbRz");
+    expect(extractLink("Le Creuset Dutch Oven : Amazon.com.au: Home\nhttps://a.co/d/abc123.")).toBe("https://a.co/d/abc123");
+    expect(extractLink("www.davidjones.com/home/123")).toBe("https://www.davidjones.com/home/123");
+    expect(extractLink("bedthreads.com.au/products/sheets")).toBe("https://bedthreads.com.au/products/sheets");
+    expect(extractLink("  ")).toBeNull();
+    expect(extractLink("a lovely casserole")).toBeNull();
+    expect(extractLink("e.g. the blue one")).toBeNull();
+    expect(extractLink("javascript:alert(1)")).toBeNull();
+  });
+
+  it("names the store, and reads Amazon's product name from its link", () => {
+    expect(storeNameForUrl("https://www.amazon.com.au/dp/B0")).toBe("Amazon");
+    expect(storeNameForUrl("https://amzn.asia/d/x")).toBe("Amazon");
+    expect(storeNameForUrl("https://www.jbhifi.com.au/products/x")).toBe("JB Hi-Fi");
+    expect(storeNameForUrl("https://shop.example.com/x")).toBe("shop.example.com");
+    expect(nameFromProductUrl("https://www.amazon.com.au/Le-Creuset-Signature-Casserole/dp/B07PGL2WVS/ref=sr_1_3")).toBe(
+      "Le Creuset Signature Casserole",
+    );
+    expect(nameFromProductUrl("https://www.amazon.com.au/dp/B07PGL2WVS")).toBeNull();
+    expect(nameFromProductUrl("https://www.myer.com.au/Le-Creuset/dp/1")).toBeNull();
+  });
+
+  it("replaces every detail the new page has, and clears what only the last link filled", () => {
+    const first = planLinkFill({ name: "", storeName: "", price: "" }, {}, { name: "Toaster", storeName: "Kmart", price: "49" });
+    expect(first).toEqual({ values: { name: "Toaster", storeName: "Kmart", price: "49" }, filled: ["name", "storeName", "price"], missing: [] });
+
+    // A second link with no price: the toaster's price must not stay behind.
+    const second = planLinkFill(first.values, first.values, { name: "Kettle", storeName: "Amazon", price: null });
+    expect(second.values).toEqual({ name: "Kettle", storeName: "Amazon", price: "" });
+    expect(second.missing).toEqual(["price"]);
+
+    // A price the couple typed themselves is kept when the page has none, and replaced when it has one.
+    expect(planLinkFill({ name: "Kettle", storeName: "", price: "80" }, { name: "Kettle" }, { name: null, storeName: null, price: null }).values)
+      .toEqual({ name: "", storeName: "", price: "80" });
+    expect(planLinkFill({ name: "Mine", storeName: "", price: "80" }, {}, { name: "Theirs", storeName: null, price: "95" }).values)
+      .toEqual({ name: "Theirs", storeName: "", price: "95" });
   });
 });

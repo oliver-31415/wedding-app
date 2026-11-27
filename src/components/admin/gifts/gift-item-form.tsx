@@ -25,8 +25,12 @@ import {
   MAX_URL,
   MIN_QUANTITY,
   centsToInputValue,
-  suggestStoreFromUrl,
+  extractLink,
+  nameFromProductUrl,
+  planLinkFill,
+  storeNameForUrl,
   type ImageMode,
+  type LinkFillText,
 } from "@/lib/gift-admin/helpers";
 
 export type GiftItemFormData = {
@@ -44,6 +48,22 @@ export type GiftItemFormData = {
 
 type PictureSource = "upload" | "shop" | "url";
 
+type FillSnapshot = {
+  name: string;
+  storeName: string;
+  price: string;
+  imageMode: ImageMode;
+  activeSource: PictureSource;
+  imageLink: string;
+  selectedFile: File | null;
+  lastFill: { text: Partial<LinkFillText>; picture: string | null } | null;
+};
+
+/** "name, store and price" */
+function listWords(words: readonly string[]): string {
+  return words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words.at(-1)}` : (words[0] ?? "");
+}
+
 export function GiftItemForm({
   item,
   currency,
@@ -54,7 +74,6 @@ export function GiftItemForm({
   const [name, setName] = useState(item?.name ?? "");
   const [url, setUrl] = useState(item?.url ?? "");
   const [storeName, setStoreName] = useState(item?.storeName ?? "");
-  const [suggestedFromPaste, setSuggestedFromPaste] = useState(false);
   const [price, setPrice] = useState(centsToInputValue(item?.priceCents));
   const [quantityWanted, setQuantityWanted] = useState(String(item?.quantityWanted ?? 1));
   const [mostWanted, setMostWanted] = useState(item?.mostWanted ?? false);
@@ -71,6 +90,16 @@ export function GiftItemForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [looking, startLookup] = useTransition();
   const [lookupMessage, setLookupMessage] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
+  // The link last read, and what it put in the form (so a new link replaces it, and Undo can put back what was there).
+  const [readLink, setReadLink] = useState<string | null>(null);
+  const [lastFill, setLastFill] = useState<FillSnapshot["lastFill"]>(null);
+  const [undo, setUndo] = useState<FillSnapshot | null>(null);
+  const lookupRequest = useRef(0);
+  // The form as it is when a lookup comes back (it can take a few seconds).
+  const latest = useRef<FillSnapshot | null>(null);
+  useEffect(() => {
+    latest.current = { name, storeName, price, imageMode, activeSource, imageLink, selectedFile, lastFill };
+  });
 
   useEffect(() => {
     if (!previewObjectUrl) return;
@@ -96,6 +125,7 @@ export function GiftItemForm({
     }
     const res = await saveGiftItemAction(prev, formData);
     if (res?.ok) {
+      setUndo(null);
       setImageMode("keep");
       setActiveSource("upload");
       setImageLink("");
@@ -104,7 +134,7 @@ export function GiftItemForm({
     return res;
   }, null);
 
-  const suggestedStore = !storeName.trim() ? suggestStoreFromUrl(url) : null;
+  const suggestedStore = !storeName.trim() ? storeNameForUrl(extractLink(url)) : null;
   const currentSavedUrl = item?.imageUrl ?? null;
   const linkPreview = imageMode === "url" && /^https?:\/\/\S+$/i.test(imageLink.trim()) ? imageLink.trim() : null;
   const previewSrc =
@@ -119,66 +149,107 @@ export function GiftItemForm({
     clientImageError ?? (dismissedServerImageError ? undefined : state?.errors?.image);
 
   /**
-   * Reads the product page and fills in whatever is still empty: name, store,
-   * price and picture (fetched and stored when the gift is saved).
+   * Reads the product page and fills in the name, store, price and picture
+   * (fetched and stored when the gift is saved). What the page has replaces
+   * what's in the form, with Undo; see planLinkFill for what it doesn't have.
    */
-  function fillFromLink(link: string) {
-    const target = link.trim();
-    if (!target) return;
+  function fillFromLink(raw: string) {
+    const link = extractLink(raw);
+    if (!link) {
+      setLookupMessage({ tone: "bad", text: "That isn't a web link. Copy the address of the product's page and paste it here." });
+      return;
+    }
+    setUrl(link);
     setLookupMessage(null);
+    const request = ++lookupRequest.current;
     startLookup(async () => {
-      const res = await lookupGiftLinkAction(target).catch(() => null);
-      if (!res?.ok) {
-        // Still useful: the store name from the address.
-        const host = suggestStoreFromUrl(target);
-        if (host && !storeName.trim()) {
-          setStoreName(host);
-          setSuggestedFromPaste(true);
-        }
-        setLookupMessage({
-          tone: "bad",
-          text: `${res?.error ?? "We couldn't read that page."} You can fill in the details yourself.`,
-        });
-        return;
-      }
-      const filled: string[] = [];
-      if (res.name && !name.trim()) {
-        setName(res.name);
-        filled.push("name");
-      }
-      if (res.storeName && !storeName.trim()) {
-        setStoreName(res.storeName);
-        setSuggestedFromPaste(false);
-        filled.push("store");
-      }
-      if (res.price && !price.trim()) {
-        setPrice(res.price);
-        filled.push("price");
-      }
-      const hasPicture = !!selectedFile || (!!currentSavedUrl && imageMode !== "remove");
-      if (res.imageUrl && !hasPicture) {
+      const res = await lookupGiftLinkAction(link).catch(() => null);
+      // Another link was pasted while this one was loading: that one wins.
+      if (request !== lookupRequest.current || !latest.current) return;
+      const before = latest.current;
+      // When the shop won't let us read its page, the link itself still gives the store (and, on Amazon, the name).
+      const found = res?.ok
+        ? { name: res.name, storeName: res.storeName, price: res.price }
+        : { name: nameFromProductUrl(link), storeName: storeNameForUrl(link), price: null };
+      const plan = planLinkFill(
+        { name: before.name, storeName: before.storeName, price: before.price },
+        before.lastFill?.text ?? {},
+        found,
+      );
+      setName(plan.values.name);
+      setStoreName(plan.values.storeName);
+      setPrice(plan.values.price);
+
+      const picture = res?.ok ? res.imageUrl : null;
+      const pictureFromLastLink =
+        !!before.lastFill?.picture && before.imageMode === "url" && before.imageLink === before.lastFill.picture;
+      if (picture) {
+        clearSelectedFile();
         setActiveSource("url");
         setImageMode("url");
-        setImageLink(res.imageUrl);
-        setClientImageError(null);
-        setDismissedServerImageError(true);
-        filled.push("picture");
+        setImageLink(picture);
+      } else if (pictureFromLastLink) {
+        setActiveSource("upload");
+        setImageMode("keep");
+        setImageLink("");
       }
-      const list = filled.length > 1 ? `${filled.slice(0, -1).join(", ")} and ${filled.at(-1)}` : filled[0];
-      setLookupMessage(
-        filled.length
-          ? { tone: "good", text: `Filled in the ${list} from the shop's page. Check them before saving.${res.priceNote ? ` ${res.priceNote}` : ""}` }
-          : {
-              tone: "bad",
-              text: res.priceNote ?? "Nothing new to fill in: we couldn't find more details, or those fields already have something in them.",
-            },
-      );
+      setClientImageError(null);
+      setDismissedServerImageError(true);
+
+      setLastFill({ text: Object.fromEntries(plan.filled.map((k) => [k, plan.values[k]])), picture });
+      setReadLink(link);
+      setUndo(before);
+
+      const label = { name: "name", storeName: "store", price: "price", picture: "picture" } as const;
+      const filled = [...plan.filled, ...(picture ? (["picture"] as const) : [])].map((k) => label[k]);
+      const stillEmpty = [
+        ...plan.missing.filter((k) => !plan.values[k].trim()),
+        ...(!picture && (pictureFromLastLink || (!before.selectedFile && !currentSavedUrl)) ? (["picture"] as const) : []),
+      ].map((k) => label[k]);
+      const priceNote = res?.ok ? res.priceNote : null;
+      const missingText = stillEmpty.filter((k) => !(k === "price" && priceNote));
+      const kept = plan.missing.filter((k) => plan.values[k].trim() && !(k === "price" && priceNote)).map((k) => label[k]);
+      const parts = [
+        res?.ok
+          ? filled.length
+            ? `Filled in the ${listWords(filled)} from the shop's page. Check them before saving.`
+            : "We read the shop's page but couldn't find the product's details on it."
+          : `${res?.error ?? "We couldn't read that page."}${filled.length ? ` We filled in the ${listWords(filled)} from the link itself.` : ""}`,
+        priceNote,
+        kept.length ? `The page didn't show the ${listWords(kept)}, so we left what you'd entered.` : null,
+        missingText.length ? `Add the ${listWords(missingText)} yourself.` : null,
+      ];
+      setLookupMessage({
+        tone: res?.ok && filled.length > 0 ? "good" : "bad",
+        text: parts.filter(Boolean).join(" "),
+      });
     });
   }
 
+  function undoFill() {
+    if (!undo) return;
+    setName(undo.name);
+    setStoreName(undo.storeName);
+    setPrice(undo.price);
+    setImageMode(undo.imageMode);
+    setActiveSource(undo.activeSource);
+    setImageLink(undo.imageLink);
+    if (undo.selectedFile) {
+      setSelectedFile(undo.selectedFile);
+      setPreviewObjectUrl(URL.createObjectURL(undo.selectedFile));
+    }
+    setLastFill(undo.lastFill);
+    setReadLink(null);
+    setUndo(null);
+    setLookupMessage({ tone: "good", text: "Put back what you had before." });
+  }
+
   function handleUrlPaste(e: React.ClipboardEvent<HTMLInputElement>) {
-    const pasted = e.clipboardData.getData("text").trim();
-    if (/^https?:\/\//i.test(pasted)) fillFromLink(pasted);
+    const link = extractLink(e.clipboardData.getData("text"));
+    if (!link) return;
+    // Just the link goes in the box, replacing what was there, and the page is read straight away.
+    e.preventDefault();
+    fillFromLink(link);
   }
 
   function selectSource(next: PictureSource) {
@@ -244,7 +315,7 @@ export function GiftItemForm({
         label="Store link"
         htmlFor="url"
         optional
-        hint="Paste a product link (https://…) and we'll fill in the name, price and picture from the shop's page. Guests can use it to view or buy the gift."
+        hint="Paste a product link and we'll fill in the name, store, price and picture from the shop's page, replacing what's there (you can undo). Guests can use it to view or buy the gift."
         error={state?.errors?.url}
       >
         <div className="flex flex-wrap gap-2">
@@ -255,23 +326,39 @@ export function GiftItemForm({
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onPaste={handleUrlPaste}
+            onBlur={() => {
+              const link = extractLink(url);
+              if (link && link !== url) setUrl(link);
+            }}
             maxLength={MAX_URL}
             placeholder="https://www.davidjones.com/..."
             invalid={!!state?.errors?.url}
             className="min-w-0 flex-1"
           />
           <Button
-            variant="secondary"
+            // Stands out until the link in the box has been read.
+            variant={extractLink(url) && extractLink(url) !== readLink ? "primary" : "secondary"}
             onClick={() => fillFromLink(url)}
-            disabled={looking || !/^https?:\/\/\S+$/i.test(url.trim())}
+            disabled={looking || !extractLink(url)}
           >
             {looking ? "Reading page…" : "Fill in from link"}
           </Button>
         </div>
       </Field>
-      <p role="status" aria-live="polite" className={cn("-mt-2 text-sm", lookupMessage?.tone === "bad" ? "text-warn" : "text-good")}>
-        {looking ? "Reading the shop's page…" : lookupMessage?.text}
-      </p>
+      <div role="status" aria-live="polite" className="-mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+        <span className={lookupMessage?.tone === "bad" ? "text-warn" : "text-good"}>
+          {looking ? "Reading the shop's page…" : lookupMessage?.text}
+        </span>
+        {!looking && undo && (
+          <button
+            type="button"
+            onClick={undoFill}
+            className="font-medium text-brand underline underline-offset-2 hover:text-brand-strong"
+          >
+            Undo
+          </button>
+        )}
+      </div>
 
       <Field label="Item name" htmlFor="name" error={state?.errors?.name}>
         <Input
@@ -299,14 +386,11 @@ export function GiftItemForm({
                 className="font-medium text-brand underline underline-offset-2 hover:text-brand-strong"
                 onClick={() => {
                   setStoreName(suggestedStore);
-                  setSuggestedFromPaste(false);
-                }}
+                            }}
               >
                 Use {suggestedStore}
               </button>
             </span>
-          ) : suggestedFromPaste ? (
-            "Suggested from the link you pasted — edit or clear if you like."
           ) : undefined
         }
         error={state?.errors?.storeName}
@@ -317,8 +401,7 @@ export function GiftItemForm({
           value={storeName}
           onChange={(e) => {
             setStoreName(e.target.value);
-            setSuggestedFromPaste(false);
-          }}
+                }}
           maxLength={MAX_STORE}
           placeholder="e.g. David Jones"
           invalid={!!state?.errors?.storeName}

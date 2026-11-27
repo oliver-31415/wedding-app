@@ -38,6 +38,8 @@ export function GiftPicture({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        // A new picture replaces the old one at once, never showing the last product while it loads.
+        key={src}
         src={src}
         alt={alt}
         loading="lazy"
